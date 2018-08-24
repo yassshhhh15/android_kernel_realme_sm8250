@@ -21,6 +21,8 @@
 #include <asm/tlbflush.h>
 #include <asm/cacheflush.h>
 
+#ifdef CONFIG_MMU
+
 #ifdef CONFIG_HAVE_RCU_TABLE_FREE
 /*
  * Semi RCU freeing of the page directories.
@@ -340,6 +342,8 @@ do {									\
 	} while (0)
 #endif
 #endif
+
+#endif /* CONFIG_MMU */
 
 #define tlb_migrate_finish(mm) do {} while (0)
 
