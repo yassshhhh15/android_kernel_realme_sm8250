@@ -19,6 +19,7 @@
 #include <linux/swap.h>
 #include <asm/pgalloc.h>
 #include <asm/tlbflush.h>
+#include <asm/cacheflush.h>
 
 #ifdef CONFIG_HAVE_RCU_TABLE_FREE
 /*
@@ -200,17 +201,19 @@ static inline void tlb_remove_check_page_size_change(struct mmu_gather *tlb,
  * the vmas are adjusted to only cover the region to be torn down.
  */
 #ifndef tlb_start_vma
-#define tlb_start_vma(tlb, vma) do { } while (0)
+#define tlb_start_vma(tlb, vma)						\
+do {									\
+	if (!tlb->fullmm)						\
+		flush_cache_range(vma, vma->vm_start, vma->vm_end);	\
+} while (0)
 #endif
 
-#define __tlb_end_vma(tlb, vma)					\
-	do {							\
-		if (!tlb->fullmm)				\
-			tlb_flush_mmu_tlbonly(tlb);		\
-	} while (0)
-
 #ifndef tlb_end_vma
-#define tlb_end_vma	__tlb_end_vma
+#define tlb_end_vma(tlb, vma)						\
+do {									\
+	if (!tlb->fullmm)						\
+		tlb_flush_mmu_tlbonly(tlb);				\
+} while (0)
 #endif
 
 #ifndef __tlb_remove_tlb_entry
