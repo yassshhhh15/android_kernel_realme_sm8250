@@ -211,6 +211,11 @@ static void __static_key_slow_dec_cpuslocked(struct static_key *key,
 		} else {
 			jump_label_update(key);
 		}
+	if (rate_limit) {
+		atomic_inc(&key->enabled);
+		queue_delayed_work(system_power_efficient_wq, work, rate_limit);
+	} else {
+		jump_label_update(key);
 	}
 	jump_label_unlock();
 }
