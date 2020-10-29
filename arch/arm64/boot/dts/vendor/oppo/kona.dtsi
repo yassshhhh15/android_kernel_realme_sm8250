@@ -70,11 +70,6 @@
     };
     // #endif
 
-    disp_rdump_memory: disp_rdump_region@9c000000 {
-        reg = <0x0 0x9c000000 0x0 0x00800000>;
-        label = "disp_rdump_region";
-    };
-
     // #ifdef OPLUS_FEATURE_DUMPDEVICE
     ramoops: ramoops@0xB0000000 {
         compatible = "ramoops";
