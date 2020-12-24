@@ -169,6 +169,8 @@ extern int cpuset_get_cgrp_idx_locked(struct task_struct *task);
 extern void uid_perf_event_lock(void);
 extern void uid_perf_event_unlock(void);
 #endif
+void do_hp_cpuset(void);
+void do_lp_cpuset(void);
 
 #else /* !CONFIG_CPUSETS */
 
