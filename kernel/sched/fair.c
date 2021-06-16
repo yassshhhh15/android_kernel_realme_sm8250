@@ -8452,8 +8452,6 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 		}
 	}
 unlock:
-	rcu_read_unlock();
-
 	/*
 	 * Pick the prev CPU, if best energy CPU can't saves at least 6% of
 	 * the energy used by prev_cpu.
@@ -8487,6 +8485,8 @@ oplus_done:
 	if (tpp_task(p))
 		tpp_find_cpu(&best_energy_cpu, p);
 #endif /* CONFIG_OPLUS_FEATURE_TPP */
+
+	rcu_read_unlock();
 
 done:
 	trace_sched_task_util(p, cpumask_bits(candidates)[0], best_energy_cpu,
