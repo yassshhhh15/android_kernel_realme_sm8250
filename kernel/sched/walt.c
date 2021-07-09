@@ -2826,40 +2826,7 @@ static inline
 void update_best_cluster(struct related_thread_group *grp,
 				   u64 demand, bool boost)
 {
-	if (boost) {
-		/*
-		 * since we are in boost, we can keep grp on min, the boosts
-		 * will ensure tasks get to bigs
-		 */
-		grp->skip_min = false;
-		return;
-	}
-
-	if (is_suh_max())
-		demand = sched_group_upmigrate;
-
-	if (!grp->skip_min) {
-		if (demand >= sched_group_upmigrate) {
-			grp->skip_min = true;
-		}
-		return;
-	}
-	if (demand < sched_group_downmigrate) {
-		if (!sysctl_sched_coloc_downmigrate_ns) {
-			grp->skip_min = false;
-			return;
-		}
-		if (!grp->downmigrate_ts) {
-			grp->downmigrate_ts = grp->last_update;
-			return;
-		}
-		if (grp->last_update - grp->downmigrate_ts >
-				sysctl_sched_coloc_downmigrate_ns) {
-			grp->downmigrate_ts = 0;
-			grp->skip_min = false;
-		}
-	} else if (grp->downmigrate_ts)
-		grp->downmigrate_ts = 0;
+	grp->skip_min = true;
 }
 
 int preferred_cluster(struct sched_cluster *cluster, struct task_struct *p)
