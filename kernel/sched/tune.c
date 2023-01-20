@@ -600,18 +600,63 @@ int schedtune_task_boost(struct task_struct *p)
 	return task_boost;
 }
 
+/*  The same as schedtune_task_boost except assuming the caller has the rcu read
+ *  lock.
+ */
+int schedtune_task_boost_rcu_locked(struct task_struct *p)
+{
+	int task_boost;
+
+	if (unlikely(!schedtune_initialized))
+		return 0;
+
+	/* Get task boost value via schedtune_filter_boost */
+	task_boost = schedtune_filter_boost(p);
+
+	return task_boost;
+}
+
+int schedtune_prefer_idle_filter(struct task_struct *p)
+{
+
+	struct schedtune *st = task_schedtune(p);
+	char name_buf[NAME_MAX + 1];
+
+	cgroup_name(st->css.cgroup, name_buf, sizeof(name_buf));
+	if (unlikely(!strncmp(name_buf, "top-app", strlen("top-app")))
+		|| unlikely(!strncmp(name_buf, "foreground", strlen("foreground")))
+		) {
+		int adj = p->signal->oom_score_adj;
+		pr_debug("task is %s with adj %i\n", p->comm, adj);
+
+		/* We only care about adj == 0 */
+		if (adj != 0)
+			return 0;
+
+		/* Don't touch kthreads */
+		if (p->flags & PF_KTHREAD)
+			return 0;
+
+		/* Always prefer idle core for important tasks */
+	     		return 1;
+	} else {
+	    /* Skip utilization of idle cores for other cgroups */
+	     return 0;
+	}
+
+	return st->prefer_idle;
+}
+
 int schedtune_prefer_idle(struct task_struct *p)
 {
-	struct schedtune *st;
 	int prefer_idle;
 
 	if (unlikely(!schedtune_initialized))
 		return 0;
 
-	/* Get prefer_idle value */
+	/* Get prefer_idle value via schedtune_prefer_idle_filter */
 	rcu_read_lock();
-	st = task_schedtune(p);
-	prefer_idle = st->prefer_idle;
+	prefer_idle = schedtune_prefer_idle_filter(p);
 	rcu_read_unlock();
 
 	return prefer_idle;
