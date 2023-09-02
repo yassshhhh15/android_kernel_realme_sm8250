@@ -1590,6 +1590,8 @@ int dsi_display_set_power(struct drm_connector *connector,
 		int power_mode, void *disp)
 {
 	struct dsi_display *display = disp;
+        struct msm_drm_notifier notifier_data;
+	int blank;
 	int rc = 0;
 
 	if (!display || !display->panel) {
@@ -1600,11 +1602,21 @@ int dsi_display_set_power(struct drm_connector *connector,
 	switch (power_mode) {
 	case SDE_MODE_DPMS_LP1:
 		rc = dsi_panel_set_lp1(display->panel);
+		blank = MSM_DRM_BLANK_POWERDOWN;
+		notifier_data.data = &blank;
+		notifier_data.id = 0;
+		msm_drm_notifier_call_chain(MSM_DRM_EARLY_EVENT_BLANK, &notifier_data);
+		drm_panel_notifier_call_chain(&display->panel->drm_panel, MSM_DRM_EARLY_EVENT_BLANK, &notifier_data);
 		break;
 	case SDE_MODE_DPMS_LP2:
 		dsi_panel_set_backlight(display->panel, dsi_panel_get_aod_bl(display));
 		usleep_range(20000, 30000);
 		rc = dsi_panel_set_lp2(display->panel);
+                blank = MSM_DRM_BLANK_POWERDOWN;
+                notifier_data.data = &blank;
+                notifier_data.id = 0;
+                msm_drm_notifier_call_chain(MSM_DRM_EARLY_EVENT_BLANK, &notifier_data);
+                drm_panel_notifier_call_chain(&display->panel->drm_panel, MSM_DRM_EARLY_EVENT_BLANK, &notifier_data);
 		break;
 	case SDE_MODE_DPMS_ON:
 		if ((display->panel->power_mode == SDE_MODE_DPMS_LP1) ||
