@@ -26,7 +26,7 @@
 #define REG_NUM 10
 #define PARAMETER_NUM 25
 #define FEATURE_NUM 10
-#define SOURCE_NUM 2
+#define SOURCE_NUM 3
 #define ALGO_PARAMETER_NUM 15
 #define ALGO_FEATURE_NUM  5
 #define DEFAULT_CONFIG 0xff
@@ -133,6 +133,10 @@ struct sensor_vector {
     struct sensor_hw hw[SOURCE_NUM];
 };
 
+struct sensor_vector_old {
+    int sensor_id;
+    struct sensor_hw hw[SOURCE_NUM - 1];
+};
 
 struct sensor_algorithm {
     int sensor_id;
@@ -143,6 +147,12 @@ struct sensor_algorithm {
 struct sensor_info {
     int magic_num;
     struct sensor_vector s_vector[SENSORS_NUM];
+    struct sensor_algorithm a_vector[SENSOR_ALGO_NUM];
+};
+
+struct sensor_info_old {
+    int magic_num;
+    struct sensor_vector_old s_vector[SENSORS_NUM];
     struct sensor_algorithm a_vector[SENSOR_ALGO_NUM];
 };
 
