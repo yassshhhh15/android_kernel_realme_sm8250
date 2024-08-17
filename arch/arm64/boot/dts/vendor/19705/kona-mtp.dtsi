@@ -470,6 +470,8 @@
  		project_id = <19795>;
  		register-is-16bit;
  		black_gesture_support;
+		black_gesture_indep_support;
+		sportify_aod_gesture_support;
  		fw_edge_limit_support;
  		pressure_report_support;
  		charger_pump_support;
