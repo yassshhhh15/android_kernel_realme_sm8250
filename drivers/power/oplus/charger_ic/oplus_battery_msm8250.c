@@ -4847,8 +4847,7 @@ restore_adc_config:
 	if (chg->wa_flags & USBIN_ADC_WA) {
 		rc = smblib_write(chg, BATIF_ADC_CHANNEL_EN_REG, reg);
 		if (rc < 0)
-			smblib_err(chg, "Couldn't write ADC config rc=%d\n",
-						rc);
+                        smblib_err(chg, "Couldn't write ADC config rc=%d\n", rc);
 	}
 
 unlock:
