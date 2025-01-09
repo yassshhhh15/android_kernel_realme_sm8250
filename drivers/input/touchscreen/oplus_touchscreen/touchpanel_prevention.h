@@ -17,6 +17,7 @@
 #define MAX_AREA_PARAMETER          (10)
 #define UP2CANCEL_PRESSURE_VALUE    (0xFF)
 
+
 typedef enum edge_grip_side {
 	TYPE_UNKNOW,
 	TYPE_LONG_SIDE,
@@ -220,7 +221,7 @@ struct kernel_grip_info {
 	int
 	rx_num;                                 /*touchpanel rx num*/
 	struct mutex
-		grip_mutex;                         /*using for protect grip parameter working*/
+		grip_mutex;                             /*using for protect grip parameter working*/
 	uint32_t
 	no_handle_y1;                           /*min y of no grip handle*/
 	uint32_t
@@ -233,9 +234,9 @@ struct kernel_grip_info {
 	record_total_cnt;                       /*remember total count*/
 
 	struct grip_point_info
-		first_point[TOUCH_MAX_NUM];         /*store the fist frame point of each ID*/
+		first_point[TOUCH_MAX_NUM];             /*store the fist frame point of each ID*/
 	struct grip_point_info
-		second_point[TOUCH_MAX_NUM];        /*store the second frame point of each ID*/
+		second_point[TOUCH_MAX_NUM];            /*store the second frame point of each ID*/
 	struct grip_point_info
 		latest_points[TOUCH_MAX_NUM][POINT_DIFF_CNT];             /*store the latest different 5 points of each ID*/
 	bool
@@ -243,15 +244,15 @@ struct kernel_grip_info {
 	bool
 	dead_out_status[TOUCH_MAX_NUM];         /*show if exit the dead grip*/
 	struct list_head
-		dead_zone_list;                     /*list all area using dead grip strategy*/
+		dead_zone_list;                         /*list all area using dead grip strategy*/
 
-	uint16_t frame_cnt[TOUCH_MAX_NUM];      /*show down frame of each id*/
-	int obj_prev_bit;                       /*show last frame obj attention*/
-	int obj_bit_rcd;                        /*show current frame obj attention for record*/
-	int obj_prced_bit_rcd;                  /*show current frame processed obj attention for record*/
-	uint16_t coord_filter_cnt;              /*cnt of make up points*/
+	uint16_t frame_cnt[TOUCH_MAX_NUM];     /*show down frame of each id*/
+	int obj_prev_bit;                      /*show last frame obj attention*/
+	int obj_bit_rcd;                            /*show current frame obj attention for record*/
+	int obj_prced_bit_rcd;                      /*show current frame processed obj attention for record*/
+	uint16_t coord_filter_cnt;             /*cnt of make up points*/
 	struct coord_buffer
-		*coord_buf;                         /*store point and its weight to do filter*/
+		*coord_buf;                             /*store point and its weight to do filter*/
 	bool
 	large_out_status[TOUCH_MAX_NUM];        /*show if exit the large area grip*/
 	uint8_t
@@ -263,9 +264,9 @@ struct kernel_grip_info {
 	uint16_t
 	large_detect_time_ms;                   /*large area detection time limit in ms*/
 	struct list_head
-		large_zone_list;                    /*list all area using large area grip strategy*/
+		large_zone_list;                        /*list all area using large area grip strategy*/
 	struct list_head
-		condition_zone_list;                /*list all area using conditional grip strategy*/
+		condition_zone_list;                    /*list all area using conditional grip strategy*/
 	bool
 	condition_out_status[TOUCH_MAX_NUM];    /*show if exit the conditional rejection*/
 	uint8_t
@@ -290,23 +291,23 @@ struct kernel_grip_info {
 	large_corner_distance;                  /*threshold to judge move from edge*/
 
 	struct curved_judge_para
-		curved_long_side_para;              /*parameter for curved touchscreen long side judge*/
+		curved_long_side_para;                  /*parameter for curved touchscreen long side judge*/
 	struct curved_judge_para
-		curved_short_side_para;             /*parameter for curved touchscreen short side judge*/
+		curved_short_side_para;                 /*parameter for curved touchscreen short side judge*/
 	bool
 	is_curved_screen;                       /*curved screen judge flag*/
 	s64
 	lastest_down_time_ms;                   /*record the lastest down time out of large judged*/
 	s64
 	down_delta_time_ms;                     /*threshold to judge whether need to make up point*/
-	bool point_unmoved[TOUCH_MAX_NUM];      /*show point have already moved*/
-	uint8_t condition_frame_limit;          /*keep rejeected while beyond this time*/
-	unsigned long condition_updelay_ms;     /*time after to report touch up*/
-	struct kfifo up_fifo;                   /*store up touch id according  to the sequence*/
-	struct hrtimer grip_up_timer[TOUCH_MAX_NUM];     /*using for report touch up event*/
+	bool point_unmoved[TOUCH_MAX_NUM];     /*show point have already moved*/
+	uint8_t condition_frame_limit;         /*keep rejeected while beyond this time*/
+	unsigned long condition_updelay_ms;    /*time after to report touch up*/
+	struct kfifo up_fifo;      /*store up touch id according  to the sequence*/
+	struct hrtimer grip_up_timer[TOUCH_MAX_NUM];/*using for report touch up event*/
 	bool grip_hold_status[TOUCH_MAX_NUM];            /*show if this id is in hold status*/
-	struct work_struct grip_up_work[TOUCH_MAX_NUM];  /*using for report touch up*/
-	struct workqueue_struct *grip_up_handle_wq;      /*just for handle report up event*/
+	struct work_struct grip_up_work[TOUCH_MAX_NUM]; /*using for report touch up*/
+	struct workqueue_struct *grip_up_handle_wq; /*just for handle report up event*/
 
 	bool eli_out_status[TOUCH_MAX_NUM];     /*store cross range status of each id*/
 	bool eli_reject_status[TOUCH_MAX_NUM];  /*show reject status if each id*/
@@ -315,8 +316,8 @@ struct kernel_grip_info {
 
 	bool grip_handle_in_fw;  /*show whether we should handle prevention in fw*/
 	bool dir_change_set_grip;
-	struct fw_grip_operations *fw_ops;      /*fw grip setting func call back*/
-	struct touchpanel_data *p_ts;           /*record the ts address*/
+	struct fw_grip_operations *fw_ops;     /*fw grip setting func call back*/
+	struct touchpanel_data *p_ts;         /*record the ts address*/
 	int work_id;
 	bool
 	is_curved_screen_V2;                    /*curved screen judge flag using new grip function*/
@@ -441,19 +442,28 @@ struct kernel_grip_info {
 };
 
 struct fw_grip_operations {
-	int (*set_fw_grip_area)(struct grip_zone_area *grip_zone, bool enable);     /*set the fw grip area*/
-	void (*set_touch_direction)(uint8_t dir);                                   /*set touch direction in fw*/
-	int (*set_no_handle_area)(struct kernel_grip_info *grip_info);              /*set no handle area in fw*/
-	int (*set_condition_frame_limit)(int frame);                                /*set condition frame limit in fw*/
-	int (*set_large_frame_limit)(int frame);                                    /*set large frame limit in fw*/
-	int (*set_large_corner_frame_limit)(int frame);                             /*set large condition frame limit in fw*/
-	int (*set_large_ver_thd)(int thd);                                          /*set large ver thd in fw*/
+	int (*set_fw_grip_area)(struct grip_zone_area *grip_zone,
+				bool enable);                        /*set the fw grip area*/
+	void (*set_touch_direction)(uint8_t
+				    dir);                                                      /*set touch direction in fw*/
+	int (*set_no_handle_area)(struct kernel_grip_info
+				  *grip_info);                                 /*set no handle area in fw*/
+	int (*set_condition_frame_limit)(int
+					 frame);                                                   /*set condition frame limit in fw*/
+	int (*set_large_frame_limit)(int
+				     frame);                                                       /*set large frame limit in fw*/
+	int (*set_large_corner_frame_limit)(int
+					    frame);                                                /*set large condition frame limit in fw*/
+	int (*set_large_ver_thd)(int
+				 thd);                                                             /*set large ver thd in fw*/
 };
 
 struct kernel_grip_info *kernel_grip_init(struct device *dev);
-void init_kernel_grip_proc(struct proc_dir_entry *prEntry_tp, struct kernel_grip_info *grip_info);
+void init_kernel_grip_proc(struct proc_dir_entry *prEntry_tp,
+			   struct kernel_grip_info *grip_info);
 void grip_status_reset(struct kernel_grip_info *grip_info, uint8_t index);
 void kernel_grip_reset(struct kernel_grip_info *grip_info);
 int kernel_grip_print_func(struct seq_file *s, struct kernel_grip_info *grip_info);
 
 #endif /*_TOUCHPANEL_PREVENTION_H_*/
+

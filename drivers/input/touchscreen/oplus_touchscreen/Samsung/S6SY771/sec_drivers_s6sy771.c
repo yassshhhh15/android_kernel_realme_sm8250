@@ -297,6 +297,88 @@ static int sec_enable_headset_mode(struct chip_data_s6sy771 *chip_info, bool ena
     return ret;
 }
 
+static int sec_limit_switch_mode(struct chip_data_s6sy771 *chip_info, bool enable)
+{
+	int ret = -1;
+	unsigned char buf[5] = {0};
+	unsigned char cmd[3] = {0};
+	unsigned char extra_cmd[3] = {0};
+	struct touchpanel_data *ts = i2c_get_clientdata(chip_info->client);
+
+	if (ts == NULL) {
+		return ret;
+	}
+
+	TPD_INFO("limit_switch is %d\n", ts->limit_switch);
+	if (ts->limit_switch == 1) {		/*LANDSPACE*/
+		cmd[0] = 0x01;
+		ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_DIRECTION, 3, cmd); /*change mode*/
+	}  else if (ts->limit_switch == 2) {
+		cmd[0] = 0x02;
+		ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_DIRECTION, 3, cmd);
+	} else {	/*portrait*/
+		cmd[0] = 0x00;
+		ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_DIRECTION, 3, cmd);
+	}
+	/*dead zone type 1*/
+	if ((ts->limit_switch == 1) || (ts->limit_switch == 2))	/*landscape*/
+		buf[2] = ts->dead_zone_l;	/*default x=15px*/
+	else	/*portrait*/
+		buf[2] = ts->dead_zone_p;	/*default x=15px*/
+
+	ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_AREA, 5, buf);
+	/*dead zone type 2*/
+	buf[0] = 0x01;
+	if ((ts->limit_switch == 1) || (ts->limit_switch == 2)) {	/*landscape*/
+		buf[2] = 0x50; /*x=80px*/
+		buf[4] = 0x50; /*y=80px*/
+	} else {	/*portrait*/
+		buf[2] = 0x1E; /*x=30px*/
+		buf[4] = 0x82; /*y=130px*/
+	}
+	ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_AREA, 5, buf);
+	/*long press reject zone*/
+	buf[0] = 0x02;
+	TPD_INFO("project info is %d\n", ts->project_info);
+	if(ts->project_info == 1) { /*19811*/
+		buf[2] = 0x3C; /*x=60px*/
+		buf[4] = 0x50; /*y=80px*/
+	} else {
+		buf[2] = 0x1E; /*x=30px*/
+		buf[4] = 0x32;  /*y=50px*/
+	}
+	ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_AREA, 5, buf);
+	extra_cmd[0] = 0x02;
+	extra_cmd[1] = 0x14;
+	extra_cmd[2] = 0x46;
+	ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_PARA, 3, extra_cmd);
+	/*large touch reject zone*/
+	buf[0] = 0x03;
+	buf[2] = 0x64; /*x=100px*/
+	buf[4] = 0x64; /*y=100px*/
+	ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_AREA, 5, buf);
+	extra_cmd[0] = 0x03;
+	extra_cmd[1] = 0x0F;
+	extra_cmd[2] = 0x28;
+	ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_PARA, 3, extra_cmd);
+	/*corner long press reject zone*/
+	buf[0] = 0x04;
+	if (ts->project_info == 1) {
+		buf[2] = 0x78; /*120px*/
+		buf[4] = 0x78; /*120px*/
+	} else {
+		buf[2] = 0x64; /*100px*/
+		buf[4] = 0x64; /*100px*/
+	}
+	ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_AREA, 5, buf);
+	extra_cmd[0] = 0x04;
+	extra_cmd[1] = 0x32;
+	extra_cmd[2] = 0x00;
+	ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_PARA, 3, extra_cmd);
+
+	return ret;
+}
+
 static int sec_smooth_lv_set(void *chip_data, int level)
 {
     int ret = -1;
@@ -306,87 +388,6 @@ static int sec_smooth_lv_set(void *chip_data, int level)
     TPD_INFO("%s: state: %d %s!\n", __func__, level, ret < 0 ? "failed" : "success");
     return ret;
 
-}
-
-static int sec_limit_switch_mode(struct chip_data_s6sy771 *chip_info, bool enable)
-{
-    int ret = -1;
-    unsigned char buf[5] = {0};
-    unsigned char cmd[3] = {0};
-    unsigned char extra_cmd[3] = {0};
-    struct touchpanel_data *ts = i2c_get_clientdata(chip_info->client);
-
-    if (ts == NULL) {
-        return ret;
-    }
-
-    TPD_INFO("limit_switch is %d\n", ts->limit_switch);
-    if (ts->limit_switch == 1) {		/*LANDSPACE*/
-        cmd[0] = 0x01;
-        ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_DIRECTION, 3, cmd); /*change mode*/
-    }  else if (ts->limit_switch == 2) {
-        cmd[0] = 0x02;
-        ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_DIRECTION, 3, cmd);
-    } else {	/*portrait*/
-        cmd[0] = 0x00;
-        ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_DIRECTION, 3, cmd);
-    }
-    /*dead zone type 1*/
-    if ((ts->limit_switch == 1) || (ts->limit_switch == 2))	/*landscape*/
-        buf[2] = ts->dead_zone_l;	/*default x=15px*/
-    else	/*portrait*/
-        buf[2] = ts->dead_zone_p;	/*default x=15px*/
-
-    ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_AREA, 5, buf);
-    /*dead zone type 2*/
-    buf[0] = 0x01;
-    if ((ts->limit_switch == 1) || (ts->limit_switch == 2)) {	/*landscape*/
-        buf[2] = 0x50; /*x=80px*/
-        buf[4] = 0x50; /*y=80px*/
-    } else {	/*portrait*/
-        buf[2] = 0x1E; /*x=30px*/
-        buf[4] = 0x82; /*y=130px*/
-    }
-    ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_AREA, 5, buf);
-    /*long press reject zone*/
-    buf[0] = 0x02;
-    if (ts->project_info == 1) { /*19811*/
-        buf[2] = 0x3C; /*x=60px*/
-        buf[4] = 0x50; /*y=80px*/
-    } else {
-        buf[2] = 0x1E; /*x=30px*/
-        buf[4] = 0x32; /*y=50px*/
-    }
-    ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_AREA, 5, buf);
-    extra_cmd[0] = 0x02;
-    extra_cmd[1] = 0x14;
-    extra_cmd[2] = 0x46;
-    ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_PARA, 3, extra_cmd);
-    /*large touch reject zone*/
-    buf[0] = 0x03;
-    buf[2] = 0x64; /*x=100px*/
-    buf[4] = 0x64; /*y=100px*/
-    ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_AREA, 5, buf);
-    extra_cmd[0] = 0x03;
-    extra_cmd[1] = 0x0F;
-    extra_cmd[2] = 0x28;
-    ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_PARA, 3, extra_cmd);
-    /*corner long press reject zone*/
-    buf[0] = 0x04;
-    if (ts->project_info == 1) {
-        buf[2] = 0x78; /*120px*/
-        buf[4] = 0x78; /*120px*/
-    } else {
-        buf[2] = 0x64; /*100px*/
-        buf[4] = 0x64; /*100px*/
-    }
-    ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_AREA, 5, buf);
-    extra_cmd[0] = 0x04;
-    extra_cmd[1] = 0x32;
-    extra_cmd[2] = 0x00;
-    ret = touch_i2c_write_block(chip_info->client, SEC_CMD_GRIP_PARA, 3, extra_cmd);
-
-    return ret;
 }
 
 void sec_mdelay(unsigned int ms)
@@ -1786,13 +1787,12 @@ static int sec_mode_switch(void *chip_data, work_mode mode, bool flag)
 	        TPD_INFO("%s: enable headset mode: %d failed\n", __func__, flag);
 	    }
 	    break;
-
-    case MODE_LIMIT_SWITCH:
-	    ret = sec_limit_switch_mode(chip_info, flag);
-	    if (ret < 0) {
-	        TPD_INFO("%s: limit switch: %d failed\n", __func__, flag);
-	    }
-	    break;
+	case MODE_LIMIT_SWITCH:
+		ret = sec_limit_switch_mode(chip_info, flag);
+		if (ret < 0) {
+			TPD_INFO("%s: limit switch: %d failed\n", __func__, flag);
+		}
+		break;
 
 	default:
 	    TPD_INFO("%s: Wrong mode.\n", __func__);
@@ -3287,6 +3287,12 @@ static bool sec_get_cal_status(struct seq_file *s, void *chip_data)
     return chip_info->cal_needed;
 }
 
+static struct sec_proc_operations sec_proc_ops = {
+    .auto_test          = sec_auto_test,
+    .verify_calibration = sec_verify_calibration,
+};
+
+/*********** Start of kernel grip callbacks*************************/
 static int ver_bottom_large_handle_func(struct grip_zone_area *grip_zone, bool enable)
 {
     int ret = 0;
@@ -3320,10 +3326,10 @@ static int ver_bottom_large_handle_func(struct grip_zone_area *grip_zone, bool e
     ret |= touch_i2c_write_block(g_chip_info->client, SEC_CMD_GRIP_AREA, sizeof(area_size), area_size);
     ret |= touch_i2c_write_byte(g_chip_info->client, SEC_CMD_GRIP_DIRECTION, g_chip_info->touch_direction);
     TPD_DETAIL("%s: cmd write is : 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x.\n", __func__, SEC_CMD_GRIP_AREA,
-            area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
+        area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
     TPD_DETAIL("%s: %s area size is %s %s in fw : [%d, %d] [%d %d].\n", __func__,
-            grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
-            grip_zone->x_width, grip_zone->y_width);
+             grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
+             grip_zone->x_width, grip_zone->y_width);
 
     return ret;
 }
@@ -3361,10 +3367,10 @@ static int hor_corner_large_handle_func(struct grip_zone_area *grip_zone, bool e
     ret |= touch_i2c_write_block(g_chip_info->client, SEC_CMD_GRIP_AREA, sizeof(area_size), area_size);
     ret |= touch_i2c_write_byte(g_chip_info->client, SEC_CMD_GRIP_DIRECTION, g_chip_info->touch_direction);
     TPD_DETAIL("%s: cmd write is : 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x.\n", __func__, SEC_CMD_GRIP_AREA,
-            area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
+        area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
     TPD_DETAIL("%s: %s area size is %s %s in fw : [%d, %d] [%d %d].\n", __func__,
-            grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
-            grip_zone->x_width, grip_zone->y_width);
+             grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
+             grip_zone->x_width, grip_zone->y_width);
 
     return ret;
 }
@@ -3390,10 +3396,10 @@ static int long_size_dead_zone_handle_func(struct grip_zone_area *grip_zone, boo
 
     ret = touch_i2c_write_block(g_chip_info->client, SEC_CMD_GRIP_AREA, sizeof(area_size), area_size);
     TPD_DETAIL("%s: cmd write is : 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x.\n", __func__, SEC_CMD_GRIP_AREA,
-            area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
+        area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
     TPD_DETAIL("%s: %s area size is %s %s in fw : [%d, %d] [%d %d].\n", __func__,
-            grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
-            grip_zone->x_width, grip_zone->y_width);
+             grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
+             grip_zone->x_width, grip_zone->y_width);
 
     return ret;
 }
@@ -3419,10 +3425,10 @@ static int short_size_dead_zone_handle_func(struct grip_zone_area *grip_zone, bo
 
     ret = touch_i2c_write_block(g_chip_info->client, SEC_CMD_GRIP_AREA, sizeof(area_size), area_size);
     TPD_DETAIL("%s: cmd write is : 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x.\n", __func__, SEC_CMD_GRIP_AREA,
-            area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
+        area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
     TPD_DETAIL("%s: %s area size is %s %s in fw : [%d, %d] [%d %d].\n", __func__,
-            grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
-            grip_zone->x_width, grip_zone->y_width);
+             grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
+             grip_zone->x_width, grip_zone->y_width);
 
     return ret;
 }
@@ -3449,17 +3455,17 @@ static int long_size_condtion_zone_handle_func(struct grip_zone_area *grip_zone,
 
     ret = touch_i2c_write_block(g_chip_info->client, SEC_CMD_GRIP_AREA, sizeof(area_size), area_size);
     TPD_DETAIL("%s: cmd write is : 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x.\n", __func__, SEC_CMD_GRIP_AREA,
-            area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
+        area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
     TPD_DETAIL("%s: %s area size is %s %s in fw : [%d, %d] [%d %d].\n", __func__,
-            grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
-            grip_zone->x_width, grip_zone->y_width);
+             grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
+             grip_zone->x_width, grip_zone->y_width);
 
     if (enable) {
         exit_thd[2] = grip_zone->exit_thd & 0xFF;
         ret = touch_i2c_write_block(g_chip_info->client, SEC_CMD_GRIP_PARA, sizeof(exit_thd), exit_thd);
         TPD_DETAIL("%s: cmd is : 0x%02x, 0x%02x, 0x%02x, 0x%02x.\n", __func__, SEC_CMD_GRIP_PARA, exit_thd[0], exit_thd[1], exit_thd[2]);
         TPD_DETAIL("%s: %s exit thd is %s change in fw : %d.\n", __func__,
-                grip_zone->name, ret < 0 ? "failed" : "success", grip_zone->exit_thd);
+                 grip_zone->name, ret < 0 ? "failed" : "success", grip_zone->exit_thd);
     }
 
     return ret;
@@ -3486,10 +3492,10 @@ static int short_size_condtion_zone_handle_func(struct grip_zone_area *grip_zone
 
     ret = touch_i2c_write_block(g_chip_info->client, SEC_CMD_GRIP_AREA, sizeof(area_size), area_size);
     TPD_DETAIL("%s: cmd write is : 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x.\n", __func__, SEC_CMD_GRIP_AREA,
-            area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
+        area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
     TPD_DETAIL("%s: %s area size is %s %s in fw : [%d, %d] [%d %d].\n", __func__,
-            grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
-            grip_zone->x_width, grip_zone->y_width);
+             grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
+             grip_zone->x_width, grip_zone->y_width);
 
     return ret;
 }
@@ -3515,10 +3521,10 @@ static int long_size_large_zone_handle_func(struct grip_zone_area *grip_zone, bo
 
     ret = touch_i2c_write_block(g_chip_info->client, SEC_CMD_GRIP_AREA, sizeof(area_size), area_size);
     TPD_DETAIL("%s: cmd write is : 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x.\n", __func__, SEC_CMD_GRIP_AREA,
-            area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
+        area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
     TPD_DETAIL("%s: %s area size is %s %s in fw : [%d, %d] [%d %d].\n", __func__,
-            grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
-            grip_zone->x_width, grip_zone->y_width);
+             grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
+             grip_zone->x_width, grip_zone->y_width);
 
     return ret;
 }
@@ -3544,10 +3550,10 @@ static int short_size_large_zone_handle_func(struct grip_zone_area *grip_zone, b
 
     ret = touch_i2c_write_block(g_chip_info->client, SEC_CMD_GRIP_AREA, sizeof(area_size), area_size);
     TPD_DETAIL("%s: cmd write is : 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x.\n", __func__, SEC_CMD_GRIP_AREA,
-            area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
+        area_size[0], area_size[1], area_size[2], area_size[3], area_size[4]);
     TPD_DETAIL("%s: %s area size is %s %s in fw : [%d, %d] [%d %d].\n", __func__,
-            grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
-            grip_zone->x_width, grip_zone->y_width);
+             grip_zone->name, ret < 0 ? "failed" : "success", enable ? "change" : "remove", grip_zone->start_x, grip_zone->start_y,
+             grip_zone->x_width, grip_zone->y_width);
 
     return ret;
 }
@@ -3574,9 +3580,9 @@ static int sec_set_fw_grip_area(struct grip_zone_area *grip_zone, bool enable)
         return 0;
     } else {
         TPD_INFO("%s: %s %s in fw : [%d, %d] [%d %d] %d %d %d.\n", __func__,
-                grip_zone->name, enable ? "modify" : "remove", grip_zone->start_x, grip_zone->start_y,
-                grip_zone->x_width, grip_zone->y_width, grip_zone->exit_thd,
-                grip_zone->support_dir, grip_zone->grip_side);
+                 grip_zone->name, enable ? "modify" : "remove", grip_zone->start_x, grip_zone->start_y,
+                 grip_zone->x_width, grip_zone->y_width, grip_zone->exit_thd,
+                 grip_zone->support_dir, grip_zone->grip_side);
     }
 
     return ret;
@@ -3604,9 +3610,9 @@ static int sec_set_no_handle_area(struct kernel_grip_info *grip_info)
 
     ret = touch_i2c_write_block(g_chip_info->client, SEC_CMD_EDGE_SCREEN, sizeof(edge_range), edge_range);
     TPD_DETAIL("%s: cmd write is : 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x.\n", __func__, SEC_CMD_EDGE_SCREEN,
-            edge_range[0], edge_range[1], edge_range[2], edge_range[3]);
+        edge_range[0], edge_range[1], edge_range[2], edge_range[3]);
     TPD_DETAIL("%s: No handle area is %s change in fw : [%d, %d, %d].\n", __func__, ret < 0 ? "failed" : "success",
-            grip_info->no_handle_dir, grip_info->no_handle_y1, grip_info->no_handle_y2);
+             grip_info->no_handle_dir, grip_info->no_handle_y1, grip_info->no_handle_y2);
 
     return ret;
 }
@@ -3624,7 +3630,7 @@ static int sec_set_condition_frame_limit(int frame_limit)
 
     ret = touch_i2c_write_block(g_chip_info->client, SEC_CMD_GRIP_PARA, sizeof(press_time), press_time);
     TPD_DETAIL("%s: cmd write is : 0x%02x, 0x%02x, 0x%02x, 0x%02x.\n", __func__, SEC_CMD_GRIP_PARA,
-            press_time[0], press_time[1], press_time[2]);
+        press_time[0], press_time[1], press_time[2]);
     TPD_DETAIL("%s: Condition frame limit is %s change in fw : frame_limit = %d.\n", __func__, ret < 0 ? "failed" : "success", frame_limit);
 
     return ret;
@@ -3643,7 +3649,7 @@ static int sec_set_large_frame_limit(int frame_limit)
 
     ret = touch_i2c_write_block(g_chip_info->client, SEC_CMD_GRIP_PARA, sizeof(press_time), press_time);
     TPD_DETAIL("%s: cmd write is : 0x%02x, 0x%02x, 0x%02x, 0x%02x.\n", __func__, SEC_CMD_GRIP_PARA,
-            press_time[0], press_time[1], press_time[2]);
+        press_time[0], press_time[1], press_time[2]);
     TPD_DETAIL("%s: large frame limit is %s change in fw : frame_limit = %d.\n", __func__, ret < 0 ? "failed" : "success", frame_limit);
 
     return ret;
@@ -3662,7 +3668,7 @@ static int sec_set_large_corner_frame_limit(int frame_limit)
 
     ret = touch_i2c_write_block(g_chip_info->client, SEC_CMD_GRIP_PARA, sizeof(press_time), press_time);
     TPD_DETAIL("%s: cmd write is : 0x%02x, 0x%02x, 0x%02x, 0x%02x.\n", __func__, SEC_CMD_GRIP_PARA,
-            press_time[0], press_time[1], press_time[2]);
+        press_time[0], press_time[1], press_time[2]);
     TPD_DETAIL("%s: large corner frame limit is %s change in fw : frame_limit = %d.\n", __func__, ret < 0 ? "failed" : "success", frame_limit);
 
     return ret;
@@ -3681,7 +3687,7 @@ static int sec_set_large_thd(int large_thd)
 
     ret = touch_i2c_write_block(g_chip_info->client, SEC_CMD_GRIP_PARA, sizeof(touch_size), touch_size);
     TPD_DETAIL("%s: cmd write is : 0x%02x, 0x%02x, 0x%02x, 0x%02x.\n", __func__, SEC_CMD_GRIP_PARA,
-            touch_size[0], touch_size[1], touch_size[2]);
+        touch_size[0], touch_size[1], touch_size[2]);
     TPD_DETAIL("%s: large ver thd is %s change in fw : large_thd = %d.\n", __func__, ret < 0 ? "failed" : "success", large_thd);
 
     return ret;
@@ -3699,7 +3705,7 @@ static void sec_set_grip_touch_direction(uint8_t dir)
     g_chip_info->touch_direction = dir;
 
     if (*g_chip_info->in_suspend) {
-        TPD_INFO("%s: set touch_direction in suspend: %d!\n", __func__, g_chip_info->touch_direction);
+        TPD_INFO("%s: set touch_direction in TP suspend !\n", __func__);
         return;
     }
 
@@ -3707,7 +3713,7 @@ static void sec_set_grip_touch_direction(uint8_t dir)
     ret = touch_i2c_write_byte(g_chip_info->client, SEC_CMD_GRIP_DIRECTION, buf);
 
     //disable wet mode while changing to horizontal
-    ret |= touch_i2c_write_byte(g_chip_info->client, SEC_CMD_WET_SWITCH, !!g_chip_info->touch_direction);
+    ret |= touch_i2c_write_byte(g_chip_info->client, SEC_CMD_WET_SWITCH, g_chip_info->touch_direction == 0 ? 0 : 1);
 
     TPD_INFO("%s: set touch_direction: %d %s!\n", __func__, g_chip_info->touch_direction, ret < 0 ? "failed" : "success");
 }
@@ -3721,11 +3727,7 @@ static struct fw_grip_operations sec_fw_grip_op = {
     .set_large_corner_frame_limit = sec_set_large_corner_frame_limit,
     .set_large_ver_thd            = sec_set_large_thd,
 };
-
-static struct sec_proc_operations sec_proc_ops = {
-    .auto_test          = sec_auto_test,
-    .verify_calibration = sec_verify_calibration,
-};
+/*********** end of kernel grip callbacks*************************/
 
 #ifdef CONFIG_OPLUS_TP_APK
 
@@ -4021,16 +4023,16 @@ static int sec_tp_probe(struct i2c_client *client, const struct i2c_device_id *i
     sec_raw_device_init(ts);
     sec_create_proc(ts, &sec_proc_ops);
 
+#ifdef CONFIG_OPLUS_TP_APK
+    sec_init_oplus_apk_op(ts);
+#endif // end of CONFIG_OPLUS_TP_APK
+
     /* 7. kernel grip interface init*/
     if (ts->grip_info) {
         if (ts->grip_info->grip_handle_in_fw) {
             ts->grip_info->fw_ops = &sec_fw_grip_op;
         }
     }
-
-#ifdef CONFIG_OPLUS_TP_APK
-    sec_init_oplus_apk_op(ts);
-#endif // end of CONFIG_OPLUS_TP_APK
 
     g_chip_info = chip_info;
 
@@ -4091,7 +4093,7 @@ static struct of_device_id tp_match_table[] = {
 };
 
 static const struct dev_pm_ops tp_pm_ops = {
-#if defined(CONFIG_FB) || defined(CONFIG_DRM_MSM)
+#ifdef CONFIG_FB
     .suspend = sec_i2c_suspend,
     .resume = sec_i2c_resume,
 #endif

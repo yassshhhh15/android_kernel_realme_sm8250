@@ -327,5 +327,4 @@ struct sec_support_grip_zone {
     char                            name[GRIP_TAG_SIZE];
     int                             (*handle_func) (struct grip_zone_area *grip_zone, bool enable);
 };
-
 #endif
