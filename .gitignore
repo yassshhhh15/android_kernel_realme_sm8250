@@ -139,3 +139,21 @@ kernel/configs/android-*.cfg
 #Ignoring Android.bp link file
 #
 Android.bp
+
+# Tech package directories
+techpack/
+
+# ignore net/oplus_modules
+net/oplus_modules
+
+# Ignore toolchain
+tc/
+
+# Ignore build outputs
+out/
+
+# Ignore AnyKernel packaging folder
+anykernel/
+
+# Ignore log files
+*.log
