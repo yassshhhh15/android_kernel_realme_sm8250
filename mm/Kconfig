@@ -872,7 +872,7 @@ config LRU_GEN
 	bool "Multi-Gen LRU"
 
 config LRU_GEN_ENABLED
-	bool "Disable by default, Need switch by sysfs control"
+	bool "Enable by default"
 
 config LRU_GEN_STATS
 	bool "Full stats for debugging"
