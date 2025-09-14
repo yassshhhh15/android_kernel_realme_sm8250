@@ -1803,7 +1803,7 @@ bool bpf_prog_array_compatible(struct bpf_array *array,
 	return ret;
 }
 
-int bpf_check_tail_call(const struct bpf_prog *fp)
+static int bpf_check_tail_call(const struct bpf_prog *fp)
 {
 	struct bpf_prog_aux *aux = fp->aux;
 	int i, ret = 0;
@@ -1827,7 +1827,6 @@ out:
 	mutex_unlock(&aux->used_maps_mutex);
 	return ret;
 }
-EXPORT_SYMBOL_GPL(bpf_check_tail_call);
 
 static void bpf_prog_select_func(struct bpf_prog *fp)
 {
