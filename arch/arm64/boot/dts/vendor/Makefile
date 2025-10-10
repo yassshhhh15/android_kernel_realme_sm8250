@@ -21,6 +21,12 @@ subdir-y += 19805
 subdir-y += 20809
 # 9R
 subdir-y += 20828
+# Find X3
+subdir-y += 20061
+# GT Master Explorer edition
+subdir-y += 21615
+# GT Neo 2
+subdir-y += 21619
 # SM7250
 # Nord
 subdir-y += 20801
