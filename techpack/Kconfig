@@ -2,4 +2,18 @@ menu "Tech packages"
 
 source "techpack/data/Kconfig"
 
+menu "Camera packages"
+
+config TECHPACK_CAMERA_ONEPLUS
+    bool "OnePlus camera 8/8P/8T"
+    help
+      OnePlus camera for 8 series
+
+config TECHPACK_CAMERA_OPPO
+    bool "OPPO camera for Oppo/Realme"
+    help
+      OPP0 camera for find x3/gt neo2 etc
+      
+endmenu
+
 endmenu
