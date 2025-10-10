@@ -150,6 +150,29 @@ enum {
 	FAST_SOC_MAX,
 };
 
+enum oplus_adapter_type {
+	ADAPTER_TYPE_UNKNOWN,
+	ADAPTER_TYPE_AC,
+	ADAPTER_TYPE_CAR,
+	ADAPTER_TYPE_PB,  /* power bank */
+};
+
+enum oplus_adapter_chg_type {
+	CHARGER_TYPE_UNKNOWN,
+	CHARGER_TYPE_NORMAL,
+	CHARGER_TYPE_VOOC,
+	CHARGER_TYPE_SVOOC,
+};
+
+struct oplus_adapter_struct {
+	unsigned char id_min;
+	unsigned char id_max;
+	unsigned int power_vooc;
+	unsigned int power_svooc;
+	enum oplus_adapter_type adapter_type;
+	enum oplus_adapter_chg_type adapter_chg_type;
+};
+
 struct batt_bcc_curve {
 	unsigned int target_volt;
 	unsigned int max_ibus;
@@ -530,4 +553,6 @@ bool oplus_vooc_bcc_get_temp_range(void);
 bool oplus_vooc_get_vooc_by_normal_path(void);
 int oplus_vooc_get_batt_curve_current(void);
 bool oplus_vooc_chip_is_null(void);
+int oplus_get_vooc_adapter_power(int id);
+int oplus_get_vooc_adapter_type(int id);
 #endif /* _OPLUS_VOOC_H */

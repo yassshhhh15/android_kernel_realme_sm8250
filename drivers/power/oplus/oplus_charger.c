@@ -15677,3 +15677,103 @@ void oplus_test_kit_unregister(void)
 	}
 }
 #endif
+
+int oplus_get_adapter_power(void)
+{
+	int power = 0;
+	bool wls_online = false;
+	bool vooc_online = false;
+	int fast_chg_type = 0;
+	struct oplus_chg_chip *chip = g_charger_chip;
+
+	wls_online = oplus_wpc_get_online_status() || oplus_chg_is_wls_present();
+	chg_info("oplus_wpc_get_online_status() is %d,oplus_chg_is_wls_present() is %d",oplus_wpc_get_online_status(), oplus_chg_is_wls_present());
+	
+	if ((oplus_vooc_get_fastchg_started() == true) ||
+		(oplus_vooc_get_fastchg_to_normal() == true) ||
+		(oplus_vooc_get_fastchg_to_warm() == true) ||
+		(oplus_vooc_get_fastchg_dummy_started() == true)) {
+		vooc_online = true;
+	}
+	chg_info("vooc_online = %d\n", vooc_online);
+	if (wls_online) {
+		if (is_wls_ocm_available(g_charger_chip))
+			power = oplus_chg_wls_get_max_wireless_power(&chip->wls_ocm->dev);
+		else
+			power = oplus_wpc_get_max_wireless_power();
+	} else if (oplus_is_ufcs_charging()) {
+		power = oplus_ufcs_get_power() * 1000;
+	} else if (oplus_is_pps_charging()) {
+		power = oplus_pps_show_power() * 1000;
+	} else if (vooc_online) {
+		fast_chg_type = oplus_vooc_get_fast_chg_type();
+		power = oplus_get_vooc_adapter_power(fast_chg_type) * 1000;
+	} else {
+		switch (chip->charger_type) {
+		case POWER_SUPPLY_TYPE_USB_DCP:
+			if ((chip->chg_ops->get_charger_subtype() == CHARGER_SUBTYPE_QC) ||
+				(chip->chg_ops->get_charger_subtype() == CHARGER_SUBTYPE_PD))
+				power = 18000;
+			else
+				power = 10000;
+			break;
+		case POWER_SUPPLY_TYPE_USB:
+			power = 2500;
+			break;
+		case POWER_SUPPLY_TYPE_USB_CDP:
+			power = 7500;
+			break;
+		default:
+			break;
+		}
+	}
+
+	chg_info("final adapter power = %d\n", power);
+	return power;
+}
+
+static int vooc_project_to_power_mw[INVALID_VOOC_PROJECT] = {
+	[NO_VOOC] = 0,
+	[VOOC] = 0,
+	[DUAL_BATT_50W] = 50000,
+	[DUAL_BATT_65W] = 65000,
+	[SINGLE_BATT_50W] = 50000,
+	[VOOCPHY_33W] = 33000,
+	[VOOCPHY_60W] = 60000,
+	[DUAL_BATT_80W] = 80000,
+	[DUAL_BATT_100W] = 100000,
+	[DUAL_BATT_150W] = 150000,
+	[POWER_BANK_66W] = 66000,
+	[POWER_BANK_67W] = 67000,
+	[POWER_BANK_120W] = 120000,
+	[POWER_BANK_44W] = 44000,
+	[DUAL_BATT_240W] = 240000,
+	[POWER_BANK_200W] = 200000,
+	[POWER_BANK_88W] = 88000,
+	[POWER_BANK_55W] = 55000,
+	[POWER_BANK_125W] = 125000,
+	[POWER_BANK_45W] = 45000
+};
+int oplus_get_project_power(void)
+{
+	int i;
+	int vooc_project = 0;
+	int project_max_power_mw = 0;
+	struct oplus_chg_chip *chip = g_charger_chip;
+
+	if (!chip) {
+		chg_err(": oplus_chip not ready!\n");
+		return 0;
+	}
+
+	vooc_project = oplus_is_vooc_project();
+	if (vooc_project >= NO_VOOC && vooc_project < INVALID_VOOC_PROJECT)
+		project_max_power_mw = vooc_project_to_power_mw[vooc_project];
+
+	for (i = 0; i < CHG_PROTOCOL_MAX; i++) {
+		if (chip->protocol_prio_table[i].max_power_mw > project_max_power_mw)
+			project_max_power_mw = chip->protocol_prio_table[i].max_power_mw;
+	}
+	chg_info("project_power: %d,project_max_power_mw");
+	return project_max_power_mw;
+}

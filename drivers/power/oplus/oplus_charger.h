@@ -607,6 +607,7 @@ typedef enum {
 	POWER_BANK_88W = 18,
 	POWER_BANK_55W = 19,
 	POWER_BANK_125W = 20,
+	POWER_BANK_45W = 21,
 	INVALID_VOOC_PROJECT,
 } OPLUS_VOOC_PROJECT_TYPE;
 
@@ -1034,6 +1035,23 @@ typedef enum {
 #define AGING1_FFC2_DUAL_LT60W_OFFSET_MV	10
 #define AGING2_FFC1_DUAL_LT60W_OFFSET_MV	15
 #define AGING2_FFC2_DUAL_LT60W_OFFSET_MV	15
+
+enum oplus_chg_protocol_type {
+	CHG_PROTOCOL_INVALID = -1,
+	CHG_PROTOCOL_BC12 = 0,
+	CHG_PROTOCOL_PD,
+	CHG_PROTOCOL_PPS,
+	CHG_PROTOCOL_VOOC,
+	CHG_PROTOCOL_UFCS,
+	CHG_PROTOCOL_QC,
+	CHG_PROTOCOL_MAX,
+};
+
+struct oplus_cpa_protocol_info {
+	enum oplus_chg_protocol_type type;
+	int power_mw;
+	int max_power_mw;
+};
 
 struct oplus_chg_chip {
 	struct i2c_client *client;
@@ -1518,6 +1536,7 @@ struct oplus_chg_chip {
 	bool use_audio_switch;
 	int soc_resume_sleep_time;
 	int track_gmtoff;
+	struct oplus_cpa_protocol_info protocol_prio_table[CHG_PROTOCOL_MAX];
 };
 
 #define TTF_UPDATE_UEVENT_BIT		BIT(30)
@@ -1907,6 +1926,8 @@ int oplus_chg_adspvoocphy_get_abnormal_adapter_disconnect_cnt(void);
 void oplus_test_kit_unregister(void);
 #endif
 int oplus_get_slow_chg_current(int batt_curve_current);
+int oplus_get_adapter_power(void);
+int oplus_get_project_power(void);
 int oplus_chg_track_upload_slow_chg_info(struct oplus_chg_chip *chip, int pct, int watt, int en);
 int oplus_chg_track_upload_mmi_chg_info(struct oplus_chg_chip *chip, int mmi_chg);
 //#endif
