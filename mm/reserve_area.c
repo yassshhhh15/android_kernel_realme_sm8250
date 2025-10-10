@@ -196,11 +196,7 @@ void trigger_svm_oom_event(struct mm_struct *mm, bool brk_risk, bool is_locked)
 		kfree(svm_oom_msg);
 		return;
 	}
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	current_time_ns = ktime_to_ns(ktime_get_boottime());
-#else
-	current_time_ns = ktime_get_boot_ns();
-#endif
 	if ((current_time_ns > current->real_start_time) ||
 			(current_time_ns - current->real_start_time >= TRIGGER_TIME_NS))
 		over_time = 1;

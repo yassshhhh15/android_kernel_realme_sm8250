@@ -126,20 +126,6 @@ static  u64 lockstat_clock(void)
 	return local_clock();
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
-unsigned int stack_trace_save(unsigned long *store, unsigned int size,
-			     unsigned int skipnr)
-{
-	struct stack_trace trace = {
-		.entries	= store,
-		.max_entries	= size,
-		.skip		= skipnr + 1,
-	};
-
-	save_stack_trace(&trace);
-	return trace.nr_entries;
-}
-#endif
 /*
  * Caller must make sure sizeof(addr_buf) >= (entries * sizeof(long))
  */
