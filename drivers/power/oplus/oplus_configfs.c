@@ -2369,6 +2369,327 @@ static ssize_t boot_completed_show(struct device *dev, struct device_attribute *
 }
 static DEVICE_ATTR_RO(boot_completed);
 
+
+static int adapter_power_by_user = -1;
+static ssize_t adapter_power_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct oplus_chg_chip *chip = NULL;
+	int power = 0;
+
+	chg_info("adapter_power_show enter\n");
+
+	chip = (struct oplus_chg_chip *)dev_get_drvdata(oplus_common_dir);
+	if (!chip) {
+		chg_err("chip is NULL (dev=%p, drvdata=%p)\n", dev, dev_get_drvdata(dev));
+		return -EINVAL;
+	}
+
+	power = oplus_get_adapter_power();
+	chg_info("oplus_get_adapter_power() return %d\n", power);
+
+	if (adapter_power_by_user > 0) {
+		chg_info("adapter_power_by_user override %d\n", adapter_power_by_user);
+		power = adapter_power_by_user;
+	}
+
+	return sprintf(buf, "%d\n", power);
+}
+
+
+static ssize_t adapter_power_store(struct device *dev, struct device_attribute *attr,
+							const char *buf, size_t count)
+{
+	int val = 0;
+
+	if (kstrtos32(buf, 0, &val)) {
+		chg_err("buf error\n");
+		return -EINVAL;
+	}
+
+	adapter_power_by_user = val;
+
+	return count;
+}
+static DEVICE_ATTR_RW(adapter_power);
+
+int __attribute__((weak)) oplus_abnormal_adapter_disconnect_keep(void)
+{
+	return 0;
+}
+
+static int protocol_type_by_user = -1;
+static ssize_t protocol_type_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct oplus_chg_chip *chip = NULL;
+	int fast_chg_type = CHARGER_SUBTYPE_DEFAULT;
+	static int last_fast_chg_type = CHARGER_SUBTYPE_DEFAULT;
+	int subtype = CHARGER_SUBTYPE_DEFAULT;
+	int rc = 0;
+	bool wls_online = false;
+	bool vooc_online = false;
+	static int pre_fast_chg_type = CHARGER_SUBTYPE_DEFAULT;
+	union oplus_chg_mod_propval pval = {0, };
+
+	chip = (struct oplus_chg_chip *)dev_get_drvdata(oplus_common_dir);
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+
+	if ((last_fast_chg_type != CHARGER_SUBTYPE_DEFAULT) &&
+		oplus_quirks_keep_connect_status() == 1)
+		return sprintf(buf, "%d\n", last_fast_chg_type);
+
+	if ((oplus_vooc_get_fastchg_started() == true) ||
+		(oplus_vooc_get_fastchg_to_normal() == true) ||
+		(oplus_vooc_get_fastchg_to_warm() == true) ||
+		(oplus_vooc_get_fastchg_dummy_started() == true)) {
+		vooc_online = true;
+	}
+
+	subtype = oplus_chg_get_fast_chg_type();
+
+	if (vooc_online && subtype !=0 ) {
+		if (oplus_get_vooc_adapter_type(subtype) == CHARGER_TYPE_SVOOC)
+			fast_chg_type = CHARGER_SUBTYPE_FASTCHG_SVOOC;
+		else
+			fast_chg_type = CHARGER_SUBTYPE_FASTCHG_VOOC;
+		pre_fast_chg_type = fast_chg_type;
+	} else if (oplus_abnormal_adapter_disconnect_keep()) {
+		fast_chg_type = pre_fast_chg_type;
+	} 
+
+	chg_err("fast_chg_type: %d\n", fast_chg_type);
+
+	wls_online = chip->wireless_support && (oplus_wpc_get_online_status() || oplus_chg_is_wls_present());
+	if (wls_online) {
+		if (is_wls_ocm_available(chip)) {
+			rc = oplus_chg_mod_get_property(chip->wls_ocm,
+							OPLUS_CHG_PROP_WLS_TYPE, &pval);
+			if (rc < 0)
+				fast_chg_type = CHARGER_SUBTYPE_DEFAULT;
+			else if (pval.intval == OPLUS_CHG_WLS_VOOC)
+				fast_chg_type = CHARGER_SUBTYPE_FASTCHG_VOOC;
+			else if (pval.intval == OPLUS_CHG_WLS_SVOOC || pval.intval == OPLUS_CHG_WLS_PD_65W)
+				fast_chg_type = CHARGER_SUBTYPE_FASTCHG_SVOOC;
+			else
+				fast_chg_type = CHARGER_SUBTYPE_DEFAULT;
+		}
+	}
+
+	if (protocol_type_by_user > 0)
+		fast_chg_type = protocol_type_by_user;
+
+	last_fast_chg_type = fast_chg_type;
+
+	return sprintf(buf, "%d\n", fast_chg_type);
+}
+
+static ssize_t protocol_type_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val = 0;
+
+	if (kstrtos32(buf, 0, &val)) {
+		chg_err("buf error\n");
+		return -EINVAL;
+	}
+
+	protocol_type_by_user = val;
+
+	return count;
+}
+static DEVICE_ATTR_RW(protocol_type);
+
+#define UI_POWER_SHOW_LIMIT 33000
+static int ui_power_by_user = -1;
+static ssize_t ui_power_show(struct device *dev,
+				      struct device_attribute *attr, char *buf)
+{
+	int adapter_power = 0;
+	int project_power = 0;
+	int ui_power = 0;
+	static int last_ui_power = -1;
+	int pps_or_ufcs_power = 0;
+	bool ufcs_online = false;
+	bool pps_online = false;
+	struct oplus_chg_chip *chip = NULL;
+	static int pre_ui_power = 0;
+
+	chip = (struct oplus_chg_chip *)dev_get_drvdata(oplus_common_dir);
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+
+	if ((last_ui_power != -1) && oplus_quirks_keep_connect_status() == 1)
+		return sprintf(buf, "%u\n", last_ui_power);
+
+	if (fast_chg_type_by_user > 0)
+		adapter_power = oplus_get_vooc_adapter_power(fast_chg_type_by_user) * 1000;
+	else
+		adapter_power = oplus_get_adapter_power();
+	project_power = oplus_get_project_power();
+
+	ufcs_online = oplus_is_ufcs_charging();
+	pps_online = oplus_is_pps_charging();
+
+	if (ufcs_online) {
+		pps_or_ufcs_power = oplus_ufcs_get_power();
+	} else if (pps_online) {
+		pps_or_ufcs_power = oplus_pps_show_power();
+	}
+
+	if (ufcs_online || pps_online)
+		ui_power = pps_or_ufcs_power * 1000;
+	else
+		ui_power = min(adapter_power, project_power);
+
+	/* Display policy: when the ui_power is less than the project_power or 33W,
+	   the ui_power is 0. */
+	if (ui_power < UI_POWER_SHOW_LIMIT || ui_power < project_power)
+		ui_power = 0;
+
+	if (ui_power_by_user > 0)
+		ui_power = ui_power_by_user;
+
+	if (oplus_abnormal_adapter_disconnect_keep())
+		ui_power = pre_ui_power;
+	else if (ui_power != 0)
+		pre_ui_power = ui_power;
+
+	last_ui_power = ui_power;
+
+	chg_info("ui_power_show: %d %d %d %d %d %d %d\n",
+		adapter_power, project_power, ufcs_online, pps_online,
+		pps_or_ufcs_power, ui_power, ui_power_by_user);
+
+	return sprintf(buf, "%u\n", ui_power);
+}
+
+static ssize_t ui_power_store(struct device *dev, struct device_attribute *attr,
+						const char *buf, size_t count)
+{
+	int val = 0;
+
+	if (kstrtos32(buf, 0, &val)) {
+		chg_err("buf error\n");
+		return -EINVAL;
+	}
+
+	ui_power_by_user = val;
+
+	return count;
+}
+static DEVICE_ATTR_RW(ui_power);
+
+static int device_power_by_user = -1;
+static ssize_t device_power_show(struct device *dev,
+				      struct device_attribute *attr, char *buf)
+{
+	struct oplus_chg_chip *chip = NULL;
+	int project_power = 0;
+
+	chip = (struct oplus_chg_chip *)dev_get_drvdata(oplus_common_dir);
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+
+	project_power = oplus_get_project_power();
+
+	if (project_power < 0)
+		project_power = 0;
+
+	if (device_power_by_user > 0)
+		project_power = device_power_by_user;
+
+	chg_info("device_power_show %d %d\n", project_power, device_power_by_user);
+	return sprintf(buf, "%u\n", project_power);
+}
+
+static ssize_t device_power_store(struct device *dev, struct device_attribute *attr,
+							const char *buf, size_t count)
+{
+	int val = 0;
+
+	if (kstrtos32(buf, 0, &val)) {
+		chg_err("buf error\n");
+		return -EINVAL;
+	}
+
+	device_power_by_user = val;
+
+	return count;
+}
+static DEVICE_ATTR_RW(device_power);
+
+static int cpa_power_by_user = -1;
+static ssize_t cpa_power_show(struct device *dev,
+                                      struct device_attribute *attr, char *buf)
+{
+	int adapter_power = 0;
+	int project_power = 0;
+	int cpa_power = 0;
+	int pps_or_ufcs_power = 0;
+	bool ufcs_online = false;
+	bool pps_online = false;
+	struct oplus_chg_chip *chip = NULL;
+	static int pre_cpa_power = 0;
+
+	chip = (struct oplus_chg_chip *)dev_get_drvdata(oplus_common_dir);
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+
+	adapter_power = oplus_get_adapter_power();
+	project_power = oplus_get_project_power();
+
+	ufcs_online = oplus_is_ufcs_charging();
+	pps_online = oplus_is_pps_charging();
+
+	if (ufcs_online) {
+		pps_or_ufcs_power = oplus_ufcs_get_power();
+	} else if (pps_online) {
+		pps_or_ufcs_power = oplus_pps_show_power();
+	}
+
+	if (ufcs_online || pps_online)
+		cpa_power = pps_or_ufcs_power * 1000;
+	else
+		cpa_power = min(adapter_power, project_power);
+
+	if (cpa_power < 0)
+		cpa_power = 0;
+
+	if (cpa_power_by_user > 0)
+		cpa_power = cpa_power_by_user;
+
+	if (oplus_abnormal_adapter_disconnect_keep())
+		cpa_power = pre_cpa_power;
+	else if (cpa_power != 0)
+		pre_cpa_power = cpa_power;
+
+	return sprintf(buf, "%u\n", cpa_power);
+}
+
+static ssize_t cpa_power_store(struct device *dev, struct device_attribute *attr,
+							const char *buf, size_t count)
+{
+	int val = 0;
+
+	if (kstrtos32(buf, 0, &val)) {
+		chg_err("buf error\n");
+		return -EINVAL;
+	}
+
+	cpa_power_by_user = val;
+
+	return count;
+}
+static DEVICE_ATTR_RW(cpa_power);
+
 static ssize_t chg_olc_config_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct oplus_chg_chip *chip = NULL;
@@ -2704,6 +3025,11 @@ static struct device_attribute *oplus_common_attributes[] = {
 	&dev_attr_battlog_push_config,
 	&dev_attr_deep_dischg_counts,
 	&dev_attr_deep_dischg_count_cali,
+	&dev_attr_adapter_power,
+	&dev_attr_protocol_type,
+	&dev_attr_ui_power,
+	&dev_attr_device_power,
+	&dev_attr_cpa_power,
 	NULL
 };
 #ifdef OPLUS_FEATURE_CHG_BASIC

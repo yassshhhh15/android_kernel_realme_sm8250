@@ -81,6 +81,54 @@ __attribute__((weak)) int register_devinfo(char *name, struct manufacture_info *
 
 static int oplus_vooc_convert_fast_chg_type(int fast_chg_type);
 
+static struct oplus_adapter_struct adapter_id_table[] = {
+	{ 0x0,  0x0,   0,   0, ADAPTER_TYPE_AC,  CHARGER_TYPE_VOOC },
+	{ 0x1,  0x1,  20,   0, ADAPTER_TYPE_AC,  CHARGER_TYPE_VOOC },
+	{ 0x11, 0x12, 30,  50, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x13, 0x13, 20,   0, ADAPTER_TYPE_AC,  CHARGER_TYPE_VOOC },
+	{ 0x14, 0x14, 30,  65, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x15, 0x16, 20,   0, ADAPTER_TYPE_AC,  CHARGER_TYPE_VOOC },
+	{ 0x17, 0x19, 30,   0, ADAPTER_TYPE_AC,  CHARGER_TYPE_VOOC },
+	{ 0x1a, 0x1b, 15,  33, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x1c, 0x1c, 22,  45, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x1d, 0x1e, 22,  44, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x21, 0x21, 30,  50, ADAPTER_TYPE_CAR, CHARGER_TYPE_SVOOC },
+	{ 0x22, 0x22, 22,  44, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x23, 0x23, 30,  50, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x24, 0x27, 30,  55, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x28, 0x28, 30,  65, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x29, 0x29, 30,   0, ADAPTER_TYPE_CAR, CHARGER_TYPE_VOOC },
+	{ 0x2a, 0x2a, 30,  65, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x2b, 0x2b, 30,  66, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x2c, 0x2e, 30,  67, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x31, 0x31, 30,  50, ADAPTER_TYPE_PB,  CHARGER_TYPE_SVOOC },
+	{ 0x32, 0x32, 30, 120, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x33, 0x33, 30,  50, ADAPTER_TYPE_PB,  CHARGER_TYPE_SVOOC },
+	{ 0x34, 0x34, 20,  20, ADAPTER_TYPE_PB,  CHARGER_TYPE_VOOC },
+	{ 0x35, 0x35, 30,  65, ADAPTER_TYPE_PB,  CHARGER_TYPE_SVOOC },
+	{ 0x36, 0x36, 30,  66, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x37, 0x3a, 30,  88, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x3b, 0x3e, 30, 100, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x41, 0x44, 30,   0, ADAPTER_TYPE_AC,  CHARGER_TYPE_VOOC },
+	{ 0x45, 0x45, 20,   0, ADAPTER_TYPE_AC,  CHARGER_TYPE_VOOC },
+	{ 0x46, 0x46, 30,   0, ADAPTER_TYPE_AC,  CHARGER_TYPE_VOOC },
+	{ 0x47, 0x48, 30, 120, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x49, 0x4a, 15,  33, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x4b, 0x4e, 30,  80, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x51, 0x51, 30, 125, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x61, 0x61, 15,  33, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x62, 0x62, 30,  50, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x63, 0x63, 30,  65, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x64, 0x64, 30,  66, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x65, 0x65, 30,  80, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x66, 0x66, 30,  65, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x67, 0x68, 30, 125, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x69, 0x6a, 30, 100, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x6b, 0x6b, 30, 120, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x6c, 0x6d, 30,  67, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+	{ 0x6e, 0x6e, 30,  65, ADAPTER_TYPE_AC,  CHARGER_TYPE_SVOOC },
+};
+
 #define ERR_BATT_TEMP -400
 static bool oplus_vooc_is_battemp_exit(void)
 {
@@ -3090,6 +3138,64 @@ static int oplus_vooc_convert_fast_chg_type(int fast_chg_type)
 	}
 
 	return FASTCHG_CHARGER_TYPE_UNKOWN;
+}
+
+int oplus_get_vooc_adapter_power(int id)
+{
+	struct oplus_adapter_struct *adapter_info;
+	enum oplus_adapter_chg_type adapter_chg_type;
+	int i = 0;
+	int power = 0;
+
+	chg_info("adapter id = 0x%08x\n", id);
+
+	for (i = 0; i < ARRAY_SIZE(adapter_id_table); i++) {
+		adapter_info = &adapter_id_table[i];
+		if (adapter_info->id_min > adapter_info->id_max)
+			continue;
+		if (id >= adapter_info->id_min && id <= adapter_info->id_max) {
+				adapter_chg_type = adapter_info->adapter_chg_type;
+				switch (adapter_chg_type) {
+				case CHARGER_TYPE_UNKNOWN:
+				case CHARGER_TYPE_NORMAL:
+					power = 0;
+					break;
+				case CHARGER_TYPE_VOOC:
+					power = adapter_info->power_vooc;
+					break;
+				case CHARGER_TYPE_SVOOC:
+					power = adapter_info->power_svooc;
+					break;
+				}
+
+			chg_info("power = %d\n", power);
+			return power;
+		}
+	}
+
+	chg_err("unsupported adapter ID\n");
+	return 0;
+}
+
+int oplus_get_vooc_adapter_type(int id)
+{
+	struct oplus_adapter_struct *adapter_info;
+	int i = 0;
+	int adapter_type = CHARGER_TYPE_UNKNOWN;
+
+	for (i = 0; i < ARRAY_SIZE(adapter_id_table); i++) {
+		adapter_info = &adapter_id_table[i];
+		if (adapter_info->id_min > adapter_info->id_max)
+			continue;
+		if (id >= adapter_info->id_min && id <= adapter_info->id_max) {
+			adapter_type = adapter_info->adapter_chg_type;
+			chg_info("adapter_type = %d\n", adapter_type);
+			return adapter_type;
+		}
+	}
+
+	chg_err("unsupported adapter ID\n");
+	return CHARGER_TYPE_UNKNOWN;
 }
 
 void oplus_vooc_set_disable_adapter_output(bool disable)
