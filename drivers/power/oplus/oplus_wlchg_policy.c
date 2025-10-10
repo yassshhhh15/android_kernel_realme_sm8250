@@ -29,14 +29,14 @@
 #include "charger_ic/oplus_battery_msm8250.h"
 #include "oplus_gauge.h"
 #include "gauge_ic/oplus_bq27541.h"
-//#ifdef OPLUS_CUSTOM_OP_DEF
+#ifdef OPLUS_CUSTOM_OP_DEF
 #include "op_wlchg/op_chargepump.h"
 #include "op_wlchg/bq2597x_charger.h"
 #include "op_wlchg/op_wlchg_rx.h"
 #include "oplus_wlchg_policy.h"
-//#else
-//#include "oplus_wireless.h"
-//#endif
+#else
+#include "oplus_wireless.h"
+#endif
 
 #define chg_debug(fmt, ...) printk(KERN_NOTICE "[WLCHG][%s]" fmt, __func__, ##__VA_ARGS__)
 
@@ -6300,9 +6300,18 @@ void oplus_wpc_set_rtx_function(bool is_on)
 	wlchg_enable_tx_function(is_on);
 }
 
-int __attribute__((weak)) oplus_wpc_get_online_status(void)
+int oplus_wpc_get_online_status(void)
 {
-	return -1;
+	if (!g_wpc_chip) {
+		return 0;
+	}
+
+	if (g_wpc_chip->wpc_ops && g_wpc_chip->wpc_ops->wpc_get_online_status){
+		return g_wpc_chip->wpc_ops->wpc_get_online_status();
+	}
+		
+	else
+		return 0;
 }
 
 int oplus_wpc_get_max_wireless_power(void)
