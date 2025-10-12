@@ -118,6 +118,11 @@ static void cgroup_bpf_release(struct work_struct *work)
 	mutex_lock(&cgroup_mutex);
 
 	for (type = 0; type < ARRAY_SIZE(cgrp->bpf.progs); type++) {
+		/* Ensure we have a valid effective array pointer */
+		old_array = rcu_dereference_protected(
+				cgrp->bpf.effective[type],
+				lockdep_is_held(&cgroup_mutex));
+		
 		struct list_head *progs = &cgrp->bpf.progs[type];
 		struct bpf_prog_list *pl, *pltmp;
 
@@ -130,9 +135,13 @@ static void cgroup_bpf_release(struct work_struct *work)
 			kfree(pl);
 			static_branch_dec(&cgroup_bpf_enabled_key);
 		}
-		old_array = rcu_dereference_protected(
-				cgrp->bpf.effective[type],
-				lockdep_is_held(&cgroup_mutex));
+
+		/* Set to NULL before freeing to prevent use-after-free */
+		rcu_assign_pointer(cgrp->bpf.effective[type], NULL);
+		
+		/* Ensure the NULL assignment is visible before freeing */
+		synchronize_rcu();
+
 		bpf_prog_array_free(old_array);
 	}
 
@@ -305,6 +314,12 @@ int cgroup_bpf_inherit(struct cgroup *cgrp)
 	for (i = 0; i < NR; i++)
 		INIT_LIST_HEAD(&cgrp->bpf.progs[i]);
 
+	/* Initialize effective arrays to NULL to prevent accessing
+	 * uninitialized pointers during early setup
+	 */
+	for (i = 0; i < NR; i++)
+		RCU_INIT_POINTER(cgrp->bpf.effective[i], NULL);
+
 	INIT_LIST_HEAD(&cgrp->bpf.storages);
 
 	for (i = 0; i < NR; i++)
@@ -350,6 +365,11 @@ static int update_effective_progs(struct cgroup *cgrp,
 		struct cgroup *desc = container_of(css, struct cgroup, self);
 
 		if (percpu_ref_is_zero(&desc->bpf.refcnt)) {
+			/* For dead cgroups, ensure effective array is NULL */
+			if (unlikely(rcu_access_pointer(desc->bpf.effective[type]) &&
+				     !desc->bpf.inactive)) {
+				rcu_assign_pointer(desc->bpf.effective[type], NULL);
+			}
 			if (unlikely(desc->bpf.inactive)) {
 				bpf_prog_array_free(desc->bpf.inactive);
 				desc->bpf.inactive = NULL;
