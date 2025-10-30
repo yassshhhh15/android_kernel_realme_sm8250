@@ -4071,6 +4071,26 @@ void oplus_pps_stop_usb_temp(void)
 	oplus_pps_voter_charging_stop(chip);
 }
 
+void oplus_pps_stop_mmi(void)
+{
+	struct oplus_pps_chip *chip = &g_pps_chip;
+	if (!chip || !chip->ops || !chip->pps_support_type)
+		return;
+
+	chip->pps_stop_status = PPS_STOP_VOTER_MMI_TEST;
+	oplus_pps_voter_charging_stop(chip);
+}
+
+void oplus_pps_stop_volt_adjust_fail(void)
+{
+	struct oplus_pps_chip *chip = &g_pps_chip;
+	if (!chip || !chip->ops || !chip->pps_support_type)
+		return;
+
+	chip->pps_stop_status = PPS_STOP_VOTER_VOLT_ADJUST_FAIL;
+	oplus_pps_voter_charging_stop(chip);
+}
+
 void oplus_pps_stop_flash_led(bool on)
 {
 	struct oplus_pps_chip *chip = &g_pps_chip;
