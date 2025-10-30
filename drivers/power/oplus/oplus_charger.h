@@ -1537,6 +1537,7 @@ struct oplus_chg_chip {
 	int soc_resume_sleep_time;
 	int track_gmtoff;
 	struct oplus_cpa_protocol_info protocol_prio_table[CHG_PROTOCOL_MAX];
+	int pre_chg_up_limit_mmi_val;
 };
 
 #define TTF_UPDATE_UEVENT_BIT		BIT(30)
@@ -1928,6 +1929,8 @@ void oplus_test_kit_unregister(void);
 int oplus_get_slow_chg_current(int batt_curve_current);
 int oplus_get_adapter_power(void);
 int oplus_get_project_power(void);
+int oplus_set_chg_up_limit(int charge_limit_enable, int charge_limit_value,
+	int is_force_set_charge_limit, int charge_limit_recharge_value, int callname);
 int oplus_chg_track_upload_slow_chg_info(struct oplus_chg_chip *chip, int pct, int watt, int en);
 int oplus_chg_track_upload_mmi_chg_info(struct oplus_chg_chip *chip, int mmi_chg);
 //#endif

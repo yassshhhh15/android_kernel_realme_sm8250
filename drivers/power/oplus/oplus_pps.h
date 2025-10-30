@@ -307,6 +307,7 @@ typedef enum {
 	PPS_STOP_VOTER_CP_ERROR = (1 << 15),
 	PPS_STOP_VOTER_STARTUP_FAIL = (1 << 16),
 	PPS_STOP_VOTER_FLASH_LED = (1 << 17),
+	PPS_STOP_VOTER_VOLT_ADJUST_FAIL = (1 << 18),
 	PPS_STOP_VOTER_OTHER_ABORMAL = (1 << 31),
 } PPS_STOP_VOTER;
 
@@ -686,6 +687,7 @@ void oplus_pps_hardware_init(void);
 void oplus_pps_cp_reset(void);
 void oplus_pps_stop_disconnect(void);
 void oplus_pps_stop_usb_temp(void);
+void oplus_pps_stop_mmi(void);
 void oplus_pps_set_vbatt_diff(bool diff);
 int oplus_is_pps_charging(void);
 void oplus_pps_set_power(int pps_ability, int imax, int vmax);

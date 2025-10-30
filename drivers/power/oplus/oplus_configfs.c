@@ -3009,6 +3009,103 @@ static ssize_t deep_dischg_count_cali_store(struct device *dev, struct device_at
 }
 static DEVICE_ATTR_RW(deep_dischg_count_cali);
 
+
+#define CHG_UP_PAGE_SIZE 128
+#define PARMS_LEN 10
+#define SEPRATOR_SIGN ","
+static char chg_up_buf[CHG_UP_PAGE_SIZE] = {0};
+int oplus_update_chg_up_limit_parms(struct oplus_chg_chip *chip, const char *buf)
+{
+	int ret = 0;
+	char temp_buf[CHG_UP_PAGE_SIZE] = {0};
+	char *buf_temp = temp_buf;
+	char *buf_to_int_begian = temp_buf;
+	int lenth_before = 0;
+	int lenth_after = 0;
+	char buf_atoi[CHG_UP_PAGE_SIZE] = {0};
+	int parms[PARMS_LEN] = {0};
+	int n = 0;
+
+	if (NULL == buf) {
+		return -ENOMEM;
+	}
+
+	if (strlen(buf) > CHG_UP_PAGE_SIZE) {
+		chg_info("buf:%s\n", buf);
+		return -EINVAL;
+	}
+	strncpy(temp_buf, buf, strlen(buf));
+	strncpy(chg_up_buf, buf, strlen(buf));
+
+	while ((*buf_temp != '\0') && (n < 10)) {
+		if (n >= PARMS_LEN) {
+			chg_info("array lens is invalid\n");
+			break;
+		}
+
+		buf_to_int_begian = buf_temp;
+		lenth_before = strlen(buf_temp);
+		buf_temp = strstr(buf_temp, SEPRATOR_SIGN);
+
+		if (buf_to_int_begian == NULL) {
+			return -EINVAL;
+		}
+
+		if (buf_temp == NULL) {
+			if (kstrtos32(buf_to_int_begian, 0, &parms[n])) {
+				chg_err("buf error\n");
+			}
+			break;
+		}
+		buf_temp += 1;
+
+		lenth_after = strlen(buf_temp);
+
+		if (lenth_before <= lenth_after + 1) {
+			return -EINVAL;
+		}
+
+		strncpy(buf_atoi, buf_to_int_begian, (lenth_before - lenth_after - 1));
+		if (kstrtos32(buf_atoi, 0, &parms[n])) {
+			chg_err("buf_atoi[%d] error\n", n);
+		}
+		memset(buf_atoi, 0, sizeof(char) * CHG_UP_PAGE_SIZE);
+		n++;
+	}
+
+	chg_info("chg_up_limit_show %d %d %d %d %d\n", parms[0], parms[1], parms[2], parms[3], parms[4]);
+	ret = oplus_set_chg_up_limit(parms[0], parms[1], parms[2], parms[3], parms[4]);
+
+	return ret;
+}
+
+static ssize_t chg_up_limit_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	int rc;
+	struct oplus_chg_chip *chip = NULL;
+
+	chip = (struct oplus_chg_chip *)dev_get_drvdata(oplus_battery_dir);
+	chg_info("chg_up_limit_store:%s\n", buf);
+	rc = oplus_update_chg_up_limit_parms(chip, buf);
+	if (rc < 0)
+		return rc;
+
+	return count;
+}
+
+static ssize_t chg_up_limit_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct oplus_configfs_device *chip = dev->driver_data;
+
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+
+	return sprintf(buf, "%s\n", chg_up_buf);
+}
+
+DEVICE_ATTR_RW(chg_up_limit);
 static struct device_attribute *oplus_common_attributes[] = {
 #ifdef OPLUS_CHG_ADB_ROOT_ENABLE
 	&dev_attr_charge_parameter,
@@ -3030,6 +3127,7 @@ static struct device_attribute *oplus_common_attributes[] = {
 	&dev_attr_ui_power,
 	&dev_attr_device_power,
 	&dev_attr_cpa_power,
+	&dev_attr_chg_up_limit,
 	NULL
 };
 #ifdef OPLUS_FEATURE_CHG_BASIC
