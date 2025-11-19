@@ -11,5 +11,6 @@ ccflags-y += -I$(srctree)/techpack/camera/drivers/cam_sensor_module/cam_cci
 ccflags-y += -I$(srctree)/techpack/camera/drivers/cam_smmu
 ccflags-y += -I$(srctree)/techpack/camera/drivers/cam_core/
 ccflags-y += -I$(srctree)/techpack/camera/drivers/cam_sensor_module/cam_ois/
+ccflags-y += -I$(srctree)/techpack/camera/drivers/cam_sensor_module/oplus/cam_ois/
 
-obj-$(CONFIG_SPECTRA_CAMERA) += PhoneUpdate.o
+obj-$(CONFIG_SPECTRA_CAMERA) += DownloadCmd.o

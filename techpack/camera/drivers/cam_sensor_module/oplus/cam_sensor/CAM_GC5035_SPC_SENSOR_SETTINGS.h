@@ -1,3 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * Copyright (c) 2020, Oplus. All rights reserved.
+ */
+
 /******************** GC5035_OTP_EDIT_START*******************/
 /*index 0 otp read init setting*/
 {
@@ -48,8 +53,8 @@
 {
     .reg_setting =
     {
-        {.reg_addr = 0x67, .reg_data = 0xc0, .delay = 0, .data_mask = 0x0},
-		{.reg_addr = 0xf3, .reg_data = 0x00, .delay = 0, .data_mask = 0x0},
+        {.reg_addr = 0x67, .reg_data = 0xc0, .delay = 0, .data_mask = 0x0},//关闭使能  结束就要关闭
+		{.reg_addr = 0xf3, .reg_data = 0x00, .delay = 0, .data_mask = 0x0},//关闭使能  结束就要关闭
     },
     .size = 2,
     .addr_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
