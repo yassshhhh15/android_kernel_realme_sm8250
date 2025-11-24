@@ -495,6 +495,7 @@ struct fastrpc_file {
 	/* Flag to indicate dynamic process creation status*/
 	enum fastrpc_process_create_state dsp_process_state;
 	struct completion shutdown;
+	bool in_process_create;
 };
 
 static struct fastrpc_apps gfa;
@@ -1012,6 +1013,7 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd,
 	map->refs = 1;
 	map->fl = fl;
 	map->fd = fd;
+	map->is_filemap = false;
 	map->attr = attr;
 	map->is_filemap = false;
 	map->ctx_refs = 0;
@@ -2678,6 +2680,7 @@ static int fastrpc_init_process(struct fastrpc_file *fl,
 			return err;
 		}
 		fl->dsp_process_state = PROCESS_CREATE_IS_INPROGRESS;
+		fl->in_process_create = true;
 		spin_unlock(&fl->hlock);
 		inbuf.pgid = fl->tgid;
 		inbuf.namelen = strlen(current->comm) + 1;
@@ -2695,6 +2698,9 @@ static int fastrpc_init_process(struct fastrpc_file *fl,
 			if (file)
 				file->is_filemap = true;
 			mutex_unlock(&fl->map_mutex);
+			if (file) {
+				file->is_filemap = true;
+			}
 			if (err)
 				goto bail;
 		}
@@ -2703,7 +2709,7 @@ static int fastrpc_init_process(struct fastrpc_file *fl,
 		VERIFY(err, !init->mem);
 		if (err) {
 			err = -EINVAL;
-			pr_err("adsprpc: %s: %s: ERROR: donated memory allocated in userspace\n",
+			pr_err("adsprpc: %s: %s: ERROR: donated memory allocated in userspace \n",
 				current->comm, __func__);
 			goto bail;
 		}
@@ -2808,8 +2814,8 @@ static int fastrpc_init_process(struct fastrpc_file *fl,
 			inbuf.pageslen = 1;
 			mutex_lock(&fl->map_mutex);
 			err = fastrpc_mmap_create(fl, -1, 0, init->mem,
-				 init->memlen, ADSP_MMAP_REMOTE_HEAP_ADDR,
-				 &mem);
+				init->memlen, ADSP_MMAP_REMOTE_HEAP_ADDR,
+				&mem);
 			if (mem)
 				mem->is_filemap = true;
 			mutex_unlock(&fl->map_mutex);
@@ -2896,6 +2902,7 @@ bail:
 	locked = 1;
 	if (err) {
 		fl->dsp_process_state = PROCESS_CREATE_DEFAULT;
+		fl->in_process_create = false;
 		if (!IS_ERR_OR_NULL(fl->init_mem)) {
 			init_mem = fl->init_mem;
 			fl->init_mem = NULL;
@@ -3882,6 +3889,7 @@ static int fastrpc_file_free(struct fastrpc_file *fl)
 	spin_lock(&fl->hlock);
 	fl->file_close = 1;
 	fl->dsp_process_state = PROCESS_CREATE_DEFAULT;
+	fl->in_process_create = false;
 	spin_unlock(&fl->hlock);
 	if (!IS_ERR_OR_NULL(fl->init_mem))
 		fastrpc_buf_free(fl->init_mem, 0);
@@ -4285,6 +4293,7 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 	fl->dev_minor = dev_minor;
 	fl->init_mem = NULL;
 	fl->dsp_process_state = PROCESS_CREATE_DEFAULT;
+	fl->in_process_create = false;
 	memset(&fl->perf, 0, sizeof(fl->perf));
 	fl->qos_request = 0;
 	fl->dsp_proc_init = 0;

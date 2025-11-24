@@ -653,9 +653,32 @@ enum qca_nl80211_vendor_subcmds {
 	QCA_NL80211_VENDOR_SUBCMD_GET_SAR_LIMITS_EVENT = 187,
 	QCA_NL80211_VENDOR_SUBCMD_UPDATE_STA_INFO = 188,
 	QCA_NL80211_VENDOR_SUBCMD_DRIVER_DISCONNECT_REASON = 189,
-	QCA_NL80211_VENDOR_SUBCMD_CONFIG_TWT = 191,
-	QCA_NL80211_VENDOR_SUBCMD_GETBAND = 192,
+        QCA_NL80211_VENDOR_SUBCMD_CONFIG_TWT = 191,
+        QCA_NL80211_VENDOR_SUBCMD_GETBAND = 192,
+
+	#ifdef OPLUS_ARCH_INJECT
+	// We need a common value to let this function work on dfferent QCOM plaftom
+	// which may have different SUBCMD defination, so assign a more large number for
+	// OPLUS command
+	OPLUS_NL80211_VENDOR_SUBCMD_MODIFY_ACL = 1001,
+	OPLUS_NL80211_VENDOR_SUBCMD_SET_MAX_ASSOC = 1002,
+	#endif /* OPLUS_ARCH_INJECT */
 };
+
+#ifdef OPLUS_ARCH_INJECT
+//add for: OPLUS specific attr
+enum oplus_vendor_attr {
+	OPLUS_WLAN_VENDOR_ATTR_UNSPECIFIC = 0, /* cannot be use due to nla_parse() */
+	OPLUS_WLAN_VENDOR_ATTR_MAC_ADDR,
+	OPLUS_WLAN_VENDOR_ATTR_WETHER_BLOCK_CLIENT,
+	OPLUS_WLAN_VENDOR_ATTR_SAP_MAX_CLIENT_NUM,
+
+	/* add attr above */
+	OPLUS_WLAN_VENDOR_ATTR_LAST,
+	OPLUS_WLAN_VENDOR_ATTR_MAX =
+			OPLUS_WLAN_VENDOR_ATTR_LAST - 1,
+};
+#endif /* OPLUS_ARCH_INJECT */
 
 enum qca_wlan_vendor_tos {
 	QCA_WLAN_VENDOR_TOS_BK = 0,
@@ -2405,10 +2428,6 @@ enum qca_wlan_vendor_attr_ll_stats_results {
 	QCA_WLAN_VENDOR_ATTR_LL_STATS_IFACE_PPDU_SUCC_CNT = 81,
 	QCA_WLAN_VENDOR_ATTR_LL_STATS_IFACE_PPDU_FAIL_CNT = 82,
 
-	/* u8 value representing the time slicing duty cycle percentage.
-	 * Possible values are 0-100.
-	 */
-	QCA_WLAN_VENDOR_ATTR_LL_STATS_IFACE_INFO_TS_DUTY_CYCLE = 87,
 	/* keep last */
 	QCA_WLAN_VENDOR_ATTR_LL_STATS_AFTER_LAST,
 	QCA_WLAN_VENDOR_ATTR_LL_STATS_MAX =
@@ -3750,10 +3769,6 @@ enum qca_wlan_vendor_attr_nd_offload {
  *	%QCA_WLAN_VENDOR_ATTR_THERMAL_LEVEL and
  *	%QCA_WLAN_VENDOR_ATTR_THERMAL_COMPLETION_WINDOW attributes from
  *	userspace.
- * @QCA_WLAN_VENDOR_FEATURE_CONCURRENT_BAND_SESSIONS: Device supports
- *	concurrent network sessions on different Wi-Fi Bands. This feature
- *	capability is attributed to the hardware's capability to support
- *	the same (e.g., DBS).
  * @NUM_QCA_WLAN_VENDOR_FEATURES: Number of assigned feature bits
  */
 enum qca_wlan_vendor_features {
@@ -3769,7 +3784,6 @@ enum qca_wlan_vendor_features {
 	QCA_WLAN_VENDOR_FEATURE_11AX = 9,
 	QCA_WLAN_VENDOR_FEATURE_6GHZ_SUPPORT = 10,
 	QCA_WLAN_VENDOR_FEATURE_THERMAL_CONFIG = 11,
-	QCA_WLAN_VENDOR_FEATURE_CONCURRENT_BAND_SESSIONS = 13,
 
 	NUM_QCA_WLAN_VENDOR_FEATURES /* keep last */
 };

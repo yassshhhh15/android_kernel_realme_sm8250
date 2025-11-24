@@ -12,6 +12,11 @@
 #include <linux/stddef.h>
 #include <linux/types.h>
 #include <linux/uidgid.h>
+#include <uapi/linux/android/binderfs.h>
+#ifdef CONFIG_OPLUS_FEATURE_CPU_JANKINFO
+#include "binder_alloc.h"
+#endif
+
 
 struct binder_context {
 	struct binder_node *binder_context_mgr_node;

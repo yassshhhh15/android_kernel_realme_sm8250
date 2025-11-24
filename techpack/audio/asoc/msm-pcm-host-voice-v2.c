@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -627,12 +626,6 @@ static int hpcm_start_vocpcm(char *pcm_id, struct hpcm_drv *prtd,
 		}
 	}
 
-	if (*no_of_tp != no_of_tp_req && *no_of_tp > 2) {
-		pr_err("%s:: Invalid hpcm start request\n", __func__);
-		memset(&prtd->start_cmd, 0, sizeof(struct start_cmd));
-		return -EINVAL;
-	}
-
 	if ((prtd->mixer_conf.tx.enable || prtd->mixer_conf.rx.enable) &&
 	    *no_of_tp == no_of_tp_req) {
 		voc_send_cvp_start_vocpcm(voc_get_session_id(sess_name),
@@ -663,11 +656,14 @@ static void hpcm_copy_playback_data_from_queue(struct dai_data *dai_data,
 				struct hpcm_buf_node, list);
 		list_del(&buf_node->list);
 		*len = buf_node->frame.len;
+#ifdef OPLUS_ARCH_EXTENDS
+		/* Apply CR#3442627 to Address buffer overflow in hpcm capture copy */
 		if (*len > HPCM_MAX_VOC_PKT_SIZE) {
 			pr_err("%s: Playback data len %d overflow\n",
 					__func__, *len);
 			return;
 		}
+#endif /*OPLUS_ARCH_EXTENDS*/
 		memcpy((u8 *)dai_data->vocpcm_ion_buffer.kvaddr,
 		       &buf_node->frame.voc_pkt[0],
 		       buf_node->frame.len);
@@ -695,11 +691,14 @@ static void hpcm_copy_capture_data_to_queue(struct dai_data *dai_data,
 	if (dai_data->substream == NULL)
 		return;
 
+#ifdef OPLUS_ARCH_EXTENDS
+		/* Apply CR#3442627 to Address buffer overflow in hpcm capture copy */
 	if (len > HPCM_MAX_VOC_PKT_SIZE) {
 		pr_err("%s: Copy capture data len %d overflow\n",
 			__func__, len);
 		return;
 	}
+#endif /*OPLUS_ARCH_EXTENDS*/
 
 	/* Copy out buffer packet into free_queue */
 	spin_lock_irqsave(&dai_data->dsp_lock, dsp_flags);
@@ -743,12 +742,15 @@ void hpcm_notify_evt_processing(uint8_t *data, char *session,
 		return;
 	}
 
+#ifdef OPLUS_ARCH_EXTENDS
+	/* Apply CR#3459076 to add check for voice session index */
 	if (prtd->mixer_conf.sess_indx < VOICE_INDEX ||
 		prtd->mixer_conf.sess_indx >= MAX_SESSION) {
 		pr_err("%s:: Invalid session idx %d\n",
 			__func__, prtd->mixer_conf.sess_indx);
 		return;
 	}
+#endif /*OPLUS_ARCH_EXTENDS*/
 
 	if (notify_evt->tap_point == VSS_IVPCM_TAP_POINT_TX_DEFAULT) {
 		tp = &prtd->session[prtd->mixer_conf.sess_indx].tx_tap_point;

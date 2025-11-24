@@ -2900,7 +2900,7 @@ int msm_venc_set_frame_qp(struct msm_vidc_inst *inst)
 		if (!(inst->client_set_ctrls & CLIENT_SET_I_QP)) {
 			s_vpr_e(inst->sid,
 				"%s: Client value is not valid\n", __func__);
-			i_qp->val = DEFAULT_QP;
+			return -EINVAL;
 		}
 		if (!(inst->client_set_ctrls & CLIENT_SET_P_QP))
 			p_qp->val = i_qp->val;

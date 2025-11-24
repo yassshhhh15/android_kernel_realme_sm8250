@@ -135,7 +135,9 @@ all.config
 # fetched Android config fragments
 kernel/configs/android-*.cfg
 
-#
-#Ignoring Android.bp link file
-#
-Android.bp
+# Tech package directories
+#techpack/
+
+# ignore net/oplus_modules
+#net/oplus_modules
+/out/

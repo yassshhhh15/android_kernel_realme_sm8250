@@ -23,6 +23,10 @@
 #include <soc/qcom/qseecomi.h>
 #include <soc/qcom/qtee_shmbridge.h>
 
+//#ifdef OPLUS_FEATURE_SECURITY_COMMON
+#include <linux/proc_fs.h>
+#define TZDBG_DIR_NAME "tzdbg"
+//#endif
 /* QSEE_LOG_BUF_SIZE = 32K */
 #define QSEE_LOG_BUF_SIZE 0x8000
 
@@ -1253,10 +1257,27 @@ static ssize_t tzdbgfs_read(struct file *file, char __user *buf,
 		return tzdbgfs_read_encrypted(file, buf, count, offp);
 }
 
+//#ifdef OPLUS_FEATURE_SECURITY_COMMON
+static int tzdbg_proc_open(struct inode *inode, struct file *file)
+{
+    return single_open(file, NULL, PDE_DATA(inode));
+}
+
+static int tzdbg_proc_release(struct inode *inode, struct file *file)
+{
+    return single_release(inode, file);
+}
+//#endif
+
 static const struct file_operations tzdbg_fops = {
 	.owner   = THIS_MODULE,
 	.read    = tzdbgfs_read,
-	.open    = simple_open,
+//#ifdef OPLUS_FEATURE_SECURITY_COMMON
+	.open    = tzdbg_proc_open,
+	.release = tzdbg_proc_release,
+//else
+	//.open    = simple_open,
+//#endif
 };
 
 

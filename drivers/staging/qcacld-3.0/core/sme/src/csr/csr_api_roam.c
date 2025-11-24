@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -104,6 +103,21 @@
 /* variable. */
 #define SNR_HACK_BMPS                         (127)
 
+
+#ifdef OPLUS_FEATURE_WIFI_DUALSTA_AP_BLACKLIST
+//Add for: hotspot management
+#ifndef MAC_ADDRESS_STR
+#define MAC_ADDRESS_STR "%02x:%02x:%02x:%02x:%02x:%02x"
+#endif /* MAC_ADDRESS_STR */
+#ifndef MAC_ADDR_ARRAY
+#define MAC_ADDR_ARRAY(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
+#endif /* MAC_ADDR_ARRAY */
+
+#define MAC_MASK(addr) addr[0], \
+    addr[1], \
+    addr[4], \
+    addr[5]
+#endif
 /*
  * ROAMING_OFFLOAD_TIMER_START - Indicates the action to start the timer
  * ROAMING_OFFLOAD_TIMER_STOP - Indicates the action to stop the timer
@@ -124,6 +138,10 @@
  * received from firmware
  */
 #define ROAM_REASON_MASK 0x0F
+#ifdef OPLUS_FEATURE_WIFI_DUALSTA_AP_BLACKLIST
+extern int is1x1IOTRouter;
+extern char routerBssid[32];
+#endif /*OPLUS_FEATURE_WIFI_DUALSTA_AP_BLACKLIST*/
 /**
  * csr_get_ielen_from_bss_description() - to get IE length
  *             from struct bss_description structure
@@ -6935,6 +6953,8 @@ static QDF_STATUS csr_roam_save_params(struct mac_context *mac_ctx,
 					wapi_ie->akm_suite_count * 4);
 				pIeBuf += wapi_ie->akm_suite_count * 4;
 			}
+			sme_debug("wapi_ie->unicast_cipher_suite_count %d",
+				wapi_ie->unicast_cipher_suite_count);
 			qdf_mem_copy(pIeBuf,
 				&wapi_ie->unicast_cipher_suite_count, 2);
 			pIeBuf += 2;
@@ -8664,7 +8684,6 @@ QDF_STATUS csr_roam_copy_profile(struct mac_context *mac,
 		pDstProfile->extended_rates.numRates =
 			pSrcProfile->extended_rates.numRates;
 	}
-	pDstProfile->require_h2e = pSrcProfile->require_h2e;
 	pDstProfile->cac_duration_ms = pSrcProfile->cac_duration_ms;
 	pDstProfile->dfs_regdomain   = pSrcProfile->dfs_regdomain;
 	pDstProfile->chan_switch_hostapd_rate_enabled  =
@@ -9349,37 +9368,6 @@ QDF_STATUS csr_roam_process_disassoc_deauth(struct mac_context *mac,
 	return status;
 }
 
-static void csr_abort_connect_request_timers(
-	struct mac_context *mac, uint32_t vdev_id)
-{
-	struct scheduler_msg msg;
-	QDF_STATUS status;
-	enum QDF_OPMODE op_mode;
-	struct wlan_objmgr_vdev *vdev;
-
-	vdev = wlan_objmgr_get_vdev_by_id_from_pdev(mac->pdev,
-						    vdev_id,
-						    WLAN_LEGACY_SME_ID);
-	if (!vdev) {
-		sme_err("Vdev ref error");
-		return;
-	}
-	op_mode = wlan_vdev_mlme_get_opmode(vdev);
-	wlan_objmgr_vdev_release_ref(vdev, WLAN_LEGACY_SME_ID);
-
-	if (op_mode != QDF_STA_MODE &&
-	    op_mode != QDF_P2P_CLIENT_MODE)
-		return;
-	qdf_mem_zero(&msg, sizeof(msg));
-	msg.bodyval = vdev_id;
-	msg.type = eWNI_SME_ABORT_CONN_TIMER;
-	status = scheduler_post_message(QDF_MODULE_ID_MLME,
-					QDF_MODULE_ID_PE,
-					QDF_MODULE_ID_PE, &msg);
-	if (QDF_IS_STATUS_ERROR(status))
-		sme_debug("msg eWNI_SME_ABORT_CONN_TIMER post fail");
-}
-
 QDF_STATUS csr_roam_issue_disassociate_cmd(struct mac_context *mac,
 					uint32_t sessionId,
 					eCsrRoamDisconnectReason reason,
@@ -9401,8 +9389,6 @@ QDF_STATUS csr_roam_issue_disassociate_cmd(struct mac_context *mac,
 			csr_roam_substate_change(mac, eCSR_ROAM_SUBSTATE_NONE,
 						 sessionId);
 		}
-		csr_abort_connect_request_timers(mac, sessionId);
-
 		pCommand->command = eSmeCommandRoam;
 		pCommand->vdev_id = (uint8_t) sessionId;
 		sme_debug("Disassociate reason: %d, vdev_id: %d",
@@ -14658,7 +14644,6 @@ csr_roam_get_bss_start_parms(struct mac_context *mac,
 	uint32_t opr_ch_freq = 0;
 	tSirNwType nw_type;
 	uint32_t tmp_opr_ch_freq = 0;
-	uint8_t h2e;
 	tSirMacRateSet *opr_rates = &pParam->operationalRateSet;
 	tSirMacRateSet *ext_rates = &pParam->extendedRateSet;
 
@@ -14755,22 +14740,6 @@ csr_roam_get_bss_start_parms(struct mac_context *mac,
 			break;
 		}
 		pParam->operation_chan_freq = opr_ch_freq;
-	}
-
-	if (pProfile->require_h2e) {
-		h2e = WLAN_BASIC_RATE_MASK |
-			WLAN_BSS_MEMBERSHIP_SELECTOR_SAE_H2E;
-		if (ext_rates->numRates < SIR_MAC_MAX_NUMBER_OF_RATES) {
-			ext_rates->rate[ext_rates->numRates] = h2e;
-			ext_rates->numRates++;
-			sme_debug("H2E bss membership add to ext support rate");
-		} else if (opr_rates->numRates < SIR_MAC_MAX_NUMBER_OF_RATES) {
-			opr_rates->rate[opr_rates->numRates] = h2e;
-			opr_rates->numRates++;
-			sme_debug("H2E bss membership add to support rate");
-		} else {
-			sme_err("rates full, can not add H2E bss membership");
-		}
 	}
 
 	pParam->sirNwType = nw_type;
@@ -16217,7 +16186,15 @@ QDF_STATUS csr_send_join_req_msg(struct mac_context *mac, uint32_t sessionId,
 			if (is_vendor_ap_present)
 				sme_debug("1x1 with 1 Chain AP");
 		}
-
+        #ifdef OPLUS_FEATURE_WIFI_DUALSTA_AP_BLACKLIST
+        if (is_vendor_ap_present) {
+            is1x1IOTRouter = 1;
+        } else {
+            is1x1IOTRouter = 0;
+        }
+         sprintf(routerBssid, MAC_ADDRESS_STR, MAC_ADDR_ARRAY(pBssDescription->bssId));
+         sme_debug("csr 1x1IOTRouter=%d, %02x:%02x:***:***:%02x:%02x\n",is1x1IOTRouter,MAC_MASK(routerBssid));
+        #endif
 		if (is_vendor_ap_present &&
 		    !policy_mgr_is_hw_dbs_2x2_capable(mac->psoc) &&
 		    ((mac->roam.configParam.is_force_1x1 ==
@@ -16260,7 +16237,9 @@ QDF_STATUS csr_send_join_req_msg(struct mac_context *mac, uint32_t sessionId,
 					       &vendor_ap_search_attr,
 					       ACTION_OUI_SWITCH_TO_11N_MODE);
 		if (mac->roam.configParam.is_force_1x1 &&
+                    #ifndef OPLUS_FEATURE_WIFI_DUALSTA
 		    mac->lteCoexAntShare &&
+		    #endif /* OPLUS_FEATURE_WIFI_DUALSTA */
 		    is_vendor_ap_present &&
 		    (dot11mode == MLME_DOT11_MODE_ALL ||
 		     dot11mode == MLME_DOT11_MODE_11AC ||
@@ -16391,6 +16370,13 @@ QDF_STATUS csr_send_join_req_msg(struct mac_context *mac, uint32_t sessionId,
 				csr_join_req->rsnIE.length = ieLen;
 				qdf_mem_copy(&csr_join_req->rsnIE.rsnIEdata,
 						 wpaRsnIE, ieLen);
+				sme_debug("csr_join_req->rsnIE.length %d",
+					csr_join_req->rsnIE.length);
+				QDF_TRACE_HEX_DUMP(QDF_MODULE_ID_SME,
+					QDF_TRACE_LEVEL_DEBUG,
+					&csr_join_req->rsnIE.rsnIEdata,
+					csr_join_req->rsnIE.length);
+
 			} else  /* should be WPA/WPA2 otherwise */
 #endif /* FEATURE_WLAN_WAPI */
 			{
