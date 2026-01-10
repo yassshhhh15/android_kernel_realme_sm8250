@@ -118,13 +118,13 @@ static void cgroup_bpf_release(struct work_struct *work)
 	mutex_lock(&cgroup_mutex);
 
 	for (type = 0; type < ARRAY_SIZE(cgrp->bpf.progs); type++) {
+		struct list_head *progs = &cgrp->bpf.progs[type];
+		struct bpf_prog_list *pl, *pltmp;
+
 		/* Ensure we have a valid effective array pointer */
 		old_array = rcu_dereference_protected(
 				cgrp->bpf.effective[type],
 				lockdep_is_held(&cgroup_mutex));
-		
-		struct list_head *progs = &cgrp->bpf.progs[type];
-		struct bpf_prog_list *pl, *pltmp;
 
 		list_for_each_entry_safe(pl, pltmp, progs, node) {
 			list_del(&pl->node);

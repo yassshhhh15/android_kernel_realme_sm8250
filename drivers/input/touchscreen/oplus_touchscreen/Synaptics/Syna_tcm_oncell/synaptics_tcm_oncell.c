@@ -2122,10 +2122,11 @@ static int syna_get_touch_points(void *chip_data, struct point_info *points, int
 	struct touch_hcd *touch_hcd = NULL;
     static unsigned int obj_attention = 0x00;
 
-    if (points == NULL || tcm_info == NULL)
+    if (points == NULL || tcm_info == NULL) {
         return obj_attention;
+    }
 
-	touch_hcd = tcm_info->touch_hcd;
+    touch_hcd = tcm_info->touch_hcd;
 
     if (!touch_hcd)
         return obj_attention;
