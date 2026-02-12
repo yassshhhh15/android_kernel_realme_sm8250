@@ -1,0 +1,107 @@
+name: Build Aurora with ReSukiSU
+
+on:
+  push:
+    branches: [ rui5/2100 ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout kernel source
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          bc bison build-essential flex git \
+          libssl-dev libelf-dev lld llvm \
+          python3 python-is-python3 \
+          zip unzip cpio rsync curl \
+          gcc g++ \
+          binutils-aarch64-linux-gnu
+
+    - name: Clone Clang 20
+      run: |
+        git clone --depth=1 https://gitlab.com/provasishh/clang-20.git tc
+
+    - name: Setup ReSukiSU
+      run: |
+        curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+
+    - name: Build & Package Kernel
+      run: |
+        echo "Cloning AnyKernel"
+        git clone https://github.com/yassshhhh15/AnyKernel3.git --depth=1 anykernel
+
+        DT=$(date +"%Y%m%d-%H%M")
+        config=vendor/kona-perf_defconfig
+
+        CROSS_COMPILE=$(pwd)/tc/aarch64-linux-android-4.9/bin/aarch64-linux-android-
+        KERNEL_ARCH=arm64
+        KERNEL_OUT=$(pwd)/out
+        export KERNEL_SRC=${KERNEL_OUT}
+        export CLANG_TRIPLE=aarch64-linux-gnu-
+        OUT_DIR=${KERNEL_OUT}
+        ARCH=${KERNEL_ARCH}
+
+        TARGET_KERNEL_MAKE_ENV="CC=$(pwd)/tc/clang/bin/clang"
+
+        compile() {
+          echo "Compiling kernel..."
+
+          make O=${OUT_DIR} ${TARGET_KERNEL_MAKE_ENV} \
+            LLVM_IAS=1 \
+            ARCH=${ARCH} \
+            CROSS_COMPILE=${CROSS_COMPILE} \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            ${config}
+
+          make ARCH=${ARCH} \
+            CROSS_COMPILE=${CROSS_COMPILE} \
+            LLVM_IAS=1 \
+            O=${OUT_DIR} \
+            ${TARGET_KERNEL_MAKE_ENV} \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            -j8
+        }
+
+        zipping() {
+          echo "Zipping kernel..."
+
+          cd anykernel || exit 1
+          rm -f *.zip
+          cp ../out/arch/arm64/boot/Image .
+          cp ../out/arch/arm64/boot/dtbo.img .
+          cp ../out/arch/arm64/boot/dtb .
+          zip -r9 Aurora-RUI-${DT}.zip *
+          rm Image dtbo.img dtb
+          cd ..
+        }
+
+        remove() {
+          echo "Removing compiled images..."
+          rm -f out/arch/arm64/boot/Image
+          rm -f out/arch/arm64/boot/dtbo.img
+          rm -f out/arch/arm64/boot/dtb
+        }
+
+        compile
+        zipping
+        remove
+
+    - name: Upload flashable zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: Aurora-RUI-ReSukiSU
+        path: anykernel/*.zip
+
