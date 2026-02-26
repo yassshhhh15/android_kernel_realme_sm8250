@@ -1,0 +1,43 @@
+// kona-mtp.dtsi
+&soc {
+    oplus_sensor {
+        msensor@1 {
+            soft-mag-parameter = <9998 0 2 0 104 1 122 0 9145 0 269 1 40 0 195 0 9963 0>;//e00 sign e01 sign ...
+        };
+    };
+};
+
+&qupv3_se13_i2c {
+    /delete-property/ black_gesture_indep_support;
+    /delete-property/ sportify_aod_gesture_support;
+    /delete-property/ switch_game_rate_support;
+    /delete-property/ report_rate_game_value;
+};
+
+&qupv3_se16_i2c {
+    rk826_fastcg@0a {
+        /delete-property/ qcom,smart_chg_bcc_support;
+        /delete-property/ qcom,svooc_0_to_50_little_cold_stop_cur;
+		/delete-property/ qcom,svooc_0_to_50_cold_stop_cur;
+		/delete-property/ qcom,svooc_0_to_50_little_cool_stop_cur;
+		/delete-property/ qcom,svooc_0_to_50_normal_low_stop_cur;
+		/delete-property/ qcom,svooc_0_to_50_normal_high_stop_cur;
+		/delete-property/ qcom,svooc_0_to_50_warm_stop_cur;
+		/delete-property/ qcom,svooc_51_to_75_little_cold_stop_cur;
+		/delete-property/ qcom,svooc_51_to_75_cold_stop_cur;
+		/delete-property/ qcom,svooc_51_to_75_little_cool_stop_cur;
+		/delete-property/ qcom,svooc_51_to_75_normal_low_stop_cur;
+		/delete-property/ qcom,svooc_51_to_75_normal_high_stop_cur;
+		/delete-property/ qcom,svooc_76_to_85_little_cold_stop_cur;
+		/delete-property/ qcom,svooc_76_to_85_cold_stop_cur;
+		/delete-property/ qcom,svooc_76_to_85_little_cool_stop_cur;
+		/delete-property/ qcom,svooc_76_to_85_normal_low_stop_cur;
+		/delete-property/ qcom,svooc_76_to_85_normal_high_stop_cur;
+		/delete-property/ qcom,svooc_86_to_90_little_cold_stop_cur;
+		/delete-property/ qcom,svooc_86_to_90_cold_stop_cur;
+		/delete-property/ qcom,svooc_86_to_90_little_cool_stop_cur;
+		/delete-property/ qcom,svooc_86_to_90_normal_low_stop_cur;
+		/delete-property/ qcom,svooc_86_to_90_normal_high_stop_cur;
+        /delete-node/ svooc_charge_curve;
+    };
+};
