@@ -1205,7 +1205,7 @@
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,mdss-brightness-normal-max-level = <2047>;
 	qcom,mdss-brightness-max-level = <4095>;
-	qcom,mdss-brightness-default-level = <400>;
+	qcom,mdss-brightness-default-level = <2000>;
 	qcom,platform-te-gpio = <&tlmm 66 0>;
 	qcom,platform-reset-gpio = <&tlmm 75 0>;
 	qcom,platform-panel-vout-gpio = <&tlmm 125 0>;
