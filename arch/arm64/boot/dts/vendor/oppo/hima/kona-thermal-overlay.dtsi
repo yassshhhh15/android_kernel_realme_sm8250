@@ -1,0 +1,194 @@
+#include <dt-bindings/thermal/thermal.h>
+
+&mdss_mdp {
+	#cooling-cells = <2>;
+};
+
+&thermal_zones {
+	/delete-node/ cwlan-step;
+	/delete-node/ video-step;
+	/delete-node/ ddr-step;
+	/delete-node/ q6-hvx-step;
+	/delete-node/ camera-step;
+	/delete-node/ cmpss-step;
+	/delete-node/ npu-step;
+
+	pm8150b-bcl-lvl0 {
+		cooling-maps {
+			vbat_cpu4 {
+				trip = <&b_bcl_lvl0>;
+				cooling-device = <&cpu4_isolate 1 1>;
+			};
+
+			vbat_cpu5 {
+				trip = <&b_bcl_lvl0>;
+				cooling-device = <&cpu5_isolate 1 1>;
+			};
+
+			vbat_gpu0 {
+				trip = <&b_bcl_lvl0>;
+				cooling-device = <&msm_gpu 2 2>;
+			};
+		};
+	};
+
+	pm8150b-bcl-lvl1 {
+		cooling-maps {
+			vbat_cpu6 {
+				trip = <&b_bcl_lvl1>;
+				cooling-device = <&cpu6_isolate 1 1>;
+			};
+
+			vbat_cpu7 {
+				trip = <&b_bcl_lvl1>;
+				cooling-device = <&cpu7_isolate 1 1>;
+			};
+
+			vbat_gpu1 {
+				trip = <&b_bcl_lvl1>;
+				cooling-device = <&msm_gpu 4 4>;
+			};
+		};
+	};
+
+	pm8150b-bcl-lvl2 {
+		cooling-maps {
+			vbat_gpu2 {
+				trip = <&b_bcl_lvl2>;
+				cooling-device = <&msm_gpu THERMAL_MAX_LIMIT
+							THERMAL_MAX_LIMIT>;
+			};
+		};
+	};
+
+	pm8150l-bcl-lvl0 {
+		disable-thermal-zone;
+		cooling-maps {
+			vph_cpu4 {
+				trip = <&l_bcl_lvl0>;
+				cooling-device = <&cpu4_isolate 1 1>;
+			};
+
+			vph_cpu5 {
+				trip = <&l_bcl_lvl0>;
+				cooling-device = <&cpu5_isolate 1 1>;
+			};
+
+			vph_gpu0 {
+				trip = <&l_bcl_lvl0>;
+				cooling-device = <&msm_gpu 2 2>;
+			};
+		};
+	};
+
+	pm8150l-bcl-lvl1 {
+		disable-thermal-zone;
+		cooling-maps {
+			vph_cpu6 {
+				trip = <&l_bcl_lvl1>;
+				cooling-device = <&cpu6_isolate 1 1>;
+			};
+
+			vph_cpu7 {
+				trip = <&l_bcl_lvl1>;
+				cooling-device = <&cpu7_isolate 1 1>;
+			};
+
+			vph_gpu1 {
+				trip = <&l_bcl_lvl1>;
+				cooling-device = <&msm_gpu 4 4>;
+			};
+		};
+	};
+
+	pm8150l-bcl-lvl2 {
+		disable-thermal-zone;
+		cooling-maps {
+			vph_gpu2 {
+				trip = <&l_bcl_lvl2>;
+				cooling-device = <&msm_gpu THERMAL_MAX_LIMIT
+							THERMAL_MAX_LIMIT>;
+			};
+		};
+	};
+
+	cpu-1-0-step {
+		trips {
+			/delete-node/ cpufreq-10-config;
+		};
+
+		cooling-maps {
+			/delete-node/ cpufreq_cdev;
+		};
+	};
+
+	cpu-1-1-step {
+		trips {
+			/delete-node/ cpufreq-11-config;
+		};
+
+		cooling-maps {
+			/delete-node/ cpufreq_cdev;
+		};
+	};
+
+	cpu-1-2-step {
+		trips {
+			/delete-node/ cpufreq-12-config;
+		};
+
+		cooling-maps {
+			/delete-node/ cpufreq_cdev;
+		};
+	};
+
+	cpu-1-3-step {
+		trips {
+			/delete-node/ cpufreq-13-config;
+		};
+
+		cooling-maps {
+			/delete-node/ cpufreq_cdev;
+		};
+	};
+
+	cpu-1-4-step {
+		trips {
+			/delete-node/ cpufreq-14-config;
+		};
+
+		cooling-maps {
+			/delete-node/ cpufreq_cdev;
+		};
+	};
+
+	cpu-1-5-step {
+		trips {
+			/delete-node/ cpufreq-15-config;
+		};
+
+		cooling-maps {
+			/delete-node/ cpufreq_cdev;
+		};
+	};
+
+	cpu-1-6-step {
+		trips {
+			/delete-node/ cpufreq-16-config;
+		};
+
+		cooling-maps {
+			/delete-node/ cpufreq_cdev;
+		};
+	};
+
+	cpu-1-7-step {
+		trips {
+			/delete-node/ cpufreq-17-config;
+		};
+
+		cooling-maps {
+			/delete-node/ cpufreq_cdev;
+		};
+	};
+};

@@ -1,0 +1,11 @@
+/dts-v1/;
+
+#include "../qcom/kona-v2.dtsi"
+#include "kona.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. kona v2 SoC";
+	compatible = "qcom,kona";
+	qcom,board-id = <0 0>;
+	oplus,dtsi_no = <20061 20135 20161 20351 21615 21619 21623 21733>;
+};
