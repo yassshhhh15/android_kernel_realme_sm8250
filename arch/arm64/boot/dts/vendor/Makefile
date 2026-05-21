@@ -18,4 +18,7 @@ subdir-y += 20828
 #7250 NORD
 subdir-y += 20801
 subdir-y += 20813
+# realme SM8250 project
+subdir-y += 21623
+subdir-y += 21733
 #endif
