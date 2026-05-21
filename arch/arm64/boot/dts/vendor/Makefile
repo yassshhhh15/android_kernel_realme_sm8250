@@ -27,6 +27,10 @@ subdir-y += 20061
 subdir-y += 21615
 # GT Neo 2
 subdir-y += 21619
+# GT Neo 3T
+subdir-y += 21623
+# Q5 Pro
+subdir-y += 21733
 # SM7250
 # Nord
 subdir-y += 20801
