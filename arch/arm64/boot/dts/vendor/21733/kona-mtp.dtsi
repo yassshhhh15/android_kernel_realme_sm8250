@@ -577,6 +577,8 @@
 		// focalt x8 resolution config
 		high_resolution_support;
 		high_resolution_support_x8;
+		switch_game_rate_support;
+		report_rate_game_value = <1>;
 		touchpanel,button-type = <4>;
 		touchpanel.button-TRx = <0 0>;
 	};
@@ -1723,6 +1725,7 @@ board_temp-usr {
 		status = "okay";
 		compatible = "oplus,mp2650-charger";
 		reg = <0x5c 0>;
+		support_icl_optimization;
 
 		qcom,mps_otg_en-gpio = <&pm8150_gpios 3 0x00>;
 		pinctrl-names = "mps_otg_en_active", "mps_otg_en_sleep", "mps_otg_en_default";
@@ -1855,6 +1858,8 @@ board_temp-usr {
 		qcom,oplus_batt_4400mv;
 		qcom,support_vooc_by_normal_charger_path;
 		qcom,vooc_fw_update_newmethod;
+		oplus,vooc_1time_full_volt = <4500>;
+		oplus,vooc_ntime_full_volt = <4490>;
 		qcom,vooc-low-temp = <0>;
 		qcom,vooc-high-temp = <500>;
 		qcom,vooc-low-soc = <1>;
@@ -2118,6 +2123,7 @@ board_temp-usr {
 			qcom,oplus-pps-usbpd-detection = <&pm8150b_pdphy>;
 
 			//for oplus chg framework:
+			oplus,full_limit_curr_support;
 			qcom,input_current_charger_ma = <2000>;
 			qcom,pd_input_current_charger_ma = <2000>;
 			qcom,qc_input_current_charger_ma = <2000>;
@@ -2233,6 +2239,8 @@ board_temp-usr {
 			qcom,little_cool_vfloat_over_sw_limit = <4445>;
 			qcom,normal_vfloat_over_sw_limit = <4445>;
 			qcom,warm_vfloat_over_sw_limit = <4140>;
+
+			oplus_spec,dec-vol-fv-mv = <40>;
 
 			qcom,vbatt_power_off = <3300>;
 			qcom,vbatt_soc_1 = <3310>;
