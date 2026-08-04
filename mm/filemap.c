@@ -124,7 +124,7 @@ static void page_cache_delete(struct address_space *mapping,
 	XA_STATE(xas, &mapping->i_pages, page->index);
 	unsigned int nr = 1;
 
-	mapping_set_update(&xas, mapping);
+	xas_set_update(&xas, workingset_lookup_update(mapping));
 
 	/* hugetlb pages are represented by a single entry in the xarray */
 	if (!PageHuge(page)) {
@@ -302,7 +302,7 @@ static void page_cache_delete_batch(struct address_space *mapping,
 	int i = 0, tail_pages = 0;
 	struct page *page;
 
-	mapping_set_update(&xas, mapping);
+	xas_set_update(&xas, workingset_lookup_update(mapping));
 	xas_for_each(&xas, page, ULONG_MAX) {
 		if (i >= pagevec_count(pvec) && !tail_pages)
 			break;
@@ -825,7 +825,7 @@ static int __add_to_page_cache_locked(struct page *page,
 
 	VM_BUG_ON_PAGE(!PageLocked(page), page);
 	VM_BUG_ON_PAGE(PageSwapBacked(page), page);
-	mapping_set_update(&xas, mapping);
+	xas_set_update(&xas, workingset_lookup_update(mapping));
 
 	if (!huge) {
 		error = mem_cgroup_try_charge(page, current->mm,
