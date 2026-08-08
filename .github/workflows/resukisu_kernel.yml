@@ -35,7 +35,7 @@ jobs:
     - name: Build & Package Kernel
       run: |
         echo "Cloning AnyKernel..."
-        git clone --filter=blob:none --depth=1 https://github.com/yassshhhh15/AnyKernel3.git anykernel
+        git clone --filter=blob:none --depth=1 https://github.com/yassshhhh15/AnyKernel3.git -b rivena-bitra-spartan anykernel
 
         DT=$(date +"%Y%m%d-%H%M")
         CONFIG=vendor/kona-perf_defconfig
