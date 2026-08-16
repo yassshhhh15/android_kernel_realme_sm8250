@@ -159,6 +159,15 @@ prepare_resukisu() {
 	# The official script clones/updates KernelSU and wires its kernel subtree
 	# into drivers/. The tracked files and symlink are restored by the EXIT trap.
 	curl -fsSL --retry 3 "$RESUKISU_SETUP_URL" | bash -s -- "$RESUKISU_REF"
+	local selected_ref expected_ref
+	selected_ref="$(git -C KernelSU rev-parse --verify 'HEAD^{commit}')" ||
+		die "unable to determine the checked out ReSukiSU commit"
+	if ! expected_ref="$(git -C KernelSU rev-parse --verify "${RESUKISU_REF}^{commit}" 2>/dev/null)"; then
+		die "ReSukiSU ref does not exist: $RESUKISU_REF"
+	fi
+	if [[ "$selected_ref" != "$expected_ref" ]]; then
+		die "ReSukiSU checkout mismatch: requested $RESUKISU_REF, got $selected_ref"
+	fi
 }
 
 if (( RESUKISU_ENABLED )); then
