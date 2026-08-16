@@ -95,8 +95,15 @@ static void find_task_by_comm(const char * pcomm, struct task_struct ** t_result
 // 2. hang and filesystem not ready(hang kernel or early native)
 static void phx_dump_hang_oplus_log(const char *happen_time)
 {
-    struct task_struct *t_init;
-    t_init = NULL;
+	struct task_struct *t_init;
+
+	if (hang_oplus_recovery_method == RESTART_AND_RECOVERY) {
+		PHX_KLOG_INFO("boot timeout: restarting into recovery\n");
+		kernel_restart("recovery");
+		return;
+	}
+
+	t_init = NULL;
     find_task_by_comm(TASK_INIT_COMM, &t_init);
     if(NULL != t_init && phx_is_filesystem_ready())
     {
