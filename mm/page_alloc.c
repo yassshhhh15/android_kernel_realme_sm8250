@@ -1470,12 +1470,6 @@ static void __free_pages_ok(struct page *page, unsigned int order)
 	unsigned long flags;
 	int migratetype;
 	unsigned long pfn = page_to_pfn(page);
-#if defined(CONFIG_OPLUS_UXMEM_OPT) && defined(OPLUS_FEATURE_SCHED_ASSIST) \
-		&& defined(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	struct zone * z= page_zone(page);
-	unsigned long mark = z->_watermark[WMARK_LOW];
-	long free_pages = zone_page_state(z, NR_FREE_PAGES);
-#endif
 
 	if (!free_pages_prepare(page, order, true))
 		return;
@@ -1484,8 +1478,7 @@ static void __free_pages_ok(struct page *page, unsigned int order)
 #if defined(CONFIG_OPLUS_UXMEM_OPT) && defined(OPLUS_FEATURE_SCHED_ASSIST) \
 		&& defined(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
 	if (ux_page_pool_enable) {
-		free_pages -= z->nr_reserved_highatomic;
-		if ((free_pages > mark) && ux_page_pool_refill(page, order, migratetype)) {
+		if (ux_page_pool_refill(page, order, migratetype)) {
 			return;
 		}
 	}
@@ -3312,11 +3305,8 @@ void free_unref_page(struct page *page)
 	unsigned long flags;
 	unsigned long pfn = page_to_pfn(page);
 #if defined(CONFIG_OPLUS_UXMEM_OPT) && defined(OPLUS_FEATURE_SCHED_ASSIST) \
-		&& defined(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	struct zone * z= page_zone(page);
-	unsigned long mark = z->_watermark[WMARK_LOW];
-	long free_pages = zone_page_state(z, NR_FREE_PAGES);
-	int migratetype;
+			&& defined(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
+		int migratetype;
 #endif
 
 	if (!free_unref_page_prepare(page, pfn))
@@ -3326,8 +3316,7 @@ void free_unref_page(struct page *page)
 		&& defined(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
 	if (ux_page_pool_enable) {
 		migratetype = get_pcppage_migratetype(page);
-		free_pages -= z->nr_reserved_highatomic;
-		if ((free_pages > mark) && ux_page_pool_refill(page, 0, migratetype)) {
+		if (ux_page_pool_refill(page, 0, migratetype)) {
 			return;
 		}
 	}
@@ -3499,7 +3488,7 @@ static struct page *__rmqueue_pcplist(struct zone *zone, int migratetype,
 		if (migratetype == MIGRATE_MOVABLE &&
 				gfp_flags & __GFP_CMA) {
 			list = get_populated_pcp_list(zone, 0, pcp,
-				gfp_flags, get_cma_migrate_type(), alloc_flags
+					gfp_flags, get_cma_migrate_type(), alloc_flags
 #if defined(CONFIG_OPLUS_UXMEM_OPT) && defined(OPLUS_FEATURE_SCHED_ASSIST)
 					, &page);
 
@@ -3516,7 +3505,7 @@ static struct page *__rmqueue_pcplist(struct zone *zone, int migratetype,
 			 * free CMA pages.
 			 */
 			list = get_populated_pcp_list(zone, 0, pcp,
-				gfp_flags, migratetype, alloc_flags
+					gfp_flags, migratetype, alloc_flags
 #if defined(CONFIG_OPLUS_UXMEM_OPT) && defined(OPLUS_FEATURE_SCHED_ASSIST)
 					, &page);
 

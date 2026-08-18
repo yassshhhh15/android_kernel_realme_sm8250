@@ -285,6 +285,11 @@ static int page_pool_fill(struct ux_page_pool *pool, int migratetype)
 	page = alloc_pages(gfp_refill, pool->order);
 	if (NULL == page)
 		return -ENOMEM;
+	if (zone_idx(page_zone(page)) != ZONE_NORMAL ||
+		get_pageblock_migratetype(page) > MIGRATE_MOVABLE) {
+		__free_pages(page, pool->order);
+		return -EINVAL;
+	}
 	if (put_page_testzero(page)) {
 		pfn = page_to_pfn(page);
 		if (!free_unref_page_prepare2(page, pool->order, pfn)) {
@@ -349,11 +354,26 @@ retry:
 int ux_page_pool_refill(struct page *page, unsigned int order, int migratetype)
 {
 	struct ux_page_pool *pool;
+	struct zone *zone;
+	unsigned long mark;
+	unsigned long free_pages;
 	int order_ind = order_to_index(order);
 
-	if (unlikely(!ux_page_pool_enabled) || !free_to_pool ||
-			(order_ind == -1) || (migratetype \
-			>= UX_POOL_MIGRATETYPE_TYPES_SIZE))
+	if (unlikely(!ux_page_pool_enable) || !ux_page_pool_enabled ||
+		!free_to_pool || !page || (order_ind == -1) ||
+		migratetype < 0 || migratetype > MIGRATE_MOVABLE)
+		return false;
+
+	zone = page_zone(page);
+	if (zone_idx(zone) != ZONE_NORMAL)
+		return false;
+
+	free_pages = zone_page_state(zone, NR_FREE_PAGES);
+	if (free_pages <= zone->nr_reserved_highatomic)
+		return false;
+	free_pages -= zone->nr_reserved_highatomic;
+	mark = zone->_watermark[WMARK_LOW];
+	if (free_pages <= mark)
 		return false;
 
 	pool = pools[order_ind];
