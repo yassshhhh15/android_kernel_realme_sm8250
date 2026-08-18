@@ -66,6 +66,12 @@ static atomic_long_t fillthread_runtime_times[NUM_ORDERS]
 
 static int page_pool_fill(struct ux_page_pool *pool, int migratetype);
 
+static unsigned int ux_page_pool_capacity(unsigned int nr_pages,
+		unsigned int order)
+{
+	return (nr_pages / UX_POOL_MIGRATETYPE_TYPES_SIZE) >> order;
+}
+
 int ux_page_pool_enable = 1;
 
 bool get_critical_zeroslowpath_task_flag(struct task_struct *tsk)
@@ -210,7 +216,7 @@ struct ux_page_pool *ux_page_pool_create(gfp_t gfp_mask, unsigned int order, uns
 	for (i = 0; i < UX_POOL_MIGRATETYPE_TYPES_SIZE; i++) {
 		pool->count[i] = 0;
 		/*MIGRATETYPE: UNMOVABLE & MOVABLE*/
-		pool->high[i] = nr_pages  /  UX_POOL_MIGRATETYPE_TYPES_SIZE;
+		pool->high[i] = ux_page_pool_capacity(nr_pages, order);
 		/* wakeup kthread on count < low, low = high/2*/
 		pool->low[i]  = pool->high[i]/2;
 		INIT_LIST_HEAD(&pool->items[i]);
@@ -378,7 +384,7 @@ static ssize_t ux_page_pool_write(struct file *file,
 			pool = pools[0];
 			spin_lock_irqsave(&pool->lock, flags);
 			/* MIGRATETYPE: UNMOVABLE & MOVABLE */
-			pool->high[i] = high_0/UX_POOL_MIGRATETYPE_TYPES_SIZE;
+			pool->high[i] = ux_page_pool_capacity(high_0, pool->order);
 			pool->low[i]  = pool->high[i]/2;
 			spin_unlock_irqrestore(&pool->lock, flags);
 			pr_info("%s order:%d migratetype:%d low: %d high: %d count:%d.\n",
@@ -388,7 +394,7 @@ static ssize_t ux_page_pool_write(struct file *file,
 			pool = pools[1];
 			spin_lock_irqsave(&pool->lock, flags);
 			/* MIGRATETYPE: UNMOVABLE & MOVABLE */
-			pool->high[i] = high_1/UX_POOL_MIGRATETYPE_TYPES_SIZE;
+			pool->high[i] = ux_page_pool_capacity(high_1, pool->order);
 			pool->low[i]  = pool->high[i]/2;
 			spin_unlock_irqrestore(&pool->lock, flags);
 			pr_info("%s order:%d migratetype:%d low: %d high: %d count:%d.\n",
@@ -520,4 +526,3 @@ int ux_page_pool_enable_handler(struct ctl_table *table, int write,
 	}
 	return 0;
 }
-
