@@ -244,17 +244,28 @@ static void page_pool_add(struct ux_page_pool *pool, struct page *page, int migr
 static struct page *page_pool_remove(struct ux_page_pool *pool, int migratetype)
 {
 	struct page *page;
+	int selected_migratetype = migratetype;
+	bool wakeup = false;
 	unsigned long flags;
 	spin_lock_irqsave(&pool->lock, flags);
 	page = list_first_entry_or_null(&pool->items[migratetype], struct page, lru);
+	if (!page) {
+		/* The pool label is bookkeeping; use the other supported list. */
+		selected_migratetype = migratetype == UX_POOL_MIGRATETYPE_UNMOVABLE ?
+			UX_POOL_MIGRATETYPE_MOVABLE : UX_POOL_MIGRATETYPE_UNMOVABLE;
+		page = list_first_entry_or_null(&pool->items[selected_migratetype],
+				struct page, lru);
+	}
 	if (page) {
-		pool->count[migratetype]--;
+		pool->count[selected_migratetype]--;
 		list_del(&page->lru);
+		wakeup = pool->count[selected_migratetype] <
+			pool->low[selected_migratetype];
 	}
 	spin_unlock_irqrestore(&pool->lock, flags);
 
 	/* wakeup kthread on count < low*/
-	if (pool->count[migratetype] < pool->low[migratetype])
+	if (wakeup)
 		page_pool_wakeup_process(pool);
 
 	return page;
@@ -296,6 +307,7 @@ struct page *ux_page_pool_alloc_pages(unsigned int order, int migratetype, bool 
 	int order_ind = order_to_index(order);
 
 	if (unlikely(!ux_page_pool_enabled) || (order_ind == -1) || \
+		(migratetype < 0) || \
 		(migratetype >= UX_POOL_MIGRATETYPE_TYPES_SIZE))
 		return NULL;
 
