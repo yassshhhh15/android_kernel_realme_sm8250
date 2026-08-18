@@ -46,11 +46,14 @@ static const unsigned int page_pool_nr_pages[] = {(SZ_32M >> PAGE_SHIFT), (SZ_8M
 #define NUM_ORDERS ARRAY_SIZE(orders)
 static struct ux_page_pool *pools[NUM_ORDERS];
 static struct task_struct *ux_page_pool_tsk = NULL;
+static struct proc_dir_entry *ux_page_pool_entry;
 static wait_queue_head_t kworkthread_waitq;
 static unsigned int kworkthread_wait_flag;
 static bool ux_page_pool_enabled = false;
 static bool fillthread_enabled = false;
 static bool free_to_pool = false;
+static bool ux_page_pool_initialized;
+static DEFINE_MUTEX(ux_page_pool_init_lock);
 
 static unsigned long ux_pool_alloc_fail = 0;
 
@@ -78,6 +81,9 @@ int ux_page_pool_enable = 1;
 
 bool get_critical_zeroslowpath_task_flag(struct task_struct *tsk)
 {
+	if (!tsk)
+		return false;
+
 	if ((tsk->ux_im_flag == IM_FLAG_SYSTEMSERVER_PID) ||
 		(tsk->ux_im_flag == IM_FLAG_SURFACEFLINGER))
 		return true;
@@ -87,8 +93,11 @@ bool get_critical_zeroslowpath_task_flag(struct task_struct *tsk)
 
 bool is_critical_zeroslowpath_task(struct task_struct *tsk)
 {
-	if (unlikely(test_task_ux(current) || rt_task(current) || task_is_fg(current) ||
-			get_critical_zeroslowpath_task_flag(current)))
+	if (!tsk)
+		return false;
+
+	if (unlikely(test_task_ux(tsk) || rt_task(tsk) || task_is_fg(tsk) ||
+			get_critical_zeroslowpath_task_flag(tsk)))
 		return true;
 	else
 		return false;
@@ -106,7 +115,8 @@ static int order_to_index(unsigned int order)
 
 static void page_pool_wakeup_process(struct ux_page_pool *pool)
 {
-	if (unlikely(!ux_page_pool_enabled))
+	if (unlikely(!READ_ONCE(ux_page_pool_enabled) ||
+			!READ_ONCE(ux_page_pool_enable)))
 		return;
 
 	if (NULL == pool) {
@@ -114,8 +124,8 @@ static void page_pool_wakeup_process(struct ux_page_pool *pool)
 		return;
 	}
 
-	if (fillthread_enabled) {
-		kworkthread_wait_flag = 1;
+	if (READ_ONCE(fillthread_enabled)) {
+		WRITE_ONCE(kworkthread_wait_flag, 1);
 		wake_up_interruptible(&kworkthread_waitq);
 	}
 }
@@ -124,9 +134,12 @@ void __maybe_unused set_ux_page_pool_fillthread_cpus(void)
 {
 	struct cpumask mask;
 	struct cpumask *cpumask = &mask;
+	cpumask_t policy_cpus;
 	pg_data_t *pgdat = NODE_DATA(0);
 	unsigned int cpu = 0, cpufreq_max_tmp = 0;
-	struct cpufreq_policy *policy_max;
+	bool have_policy = false;
+
+	cpumask_clear(&policy_cpus);
 
 	for_each_possible_cpu(cpu) {
 		struct cpufreq_policy *policy = cpufreq_cpu_get(cpu);
@@ -136,16 +149,18 @@ void __maybe_unused set_ux_page_pool_fillthread_cpus(void)
 
 		if (policy->cpuinfo.max_freq >= cpufreq_max_tmp) {
 			cpufreq_max_tmp = policy->cpuinfo.max_freq;
-			policy_max = policy;
+			cpumask_copy(&policy_cpus, policy->related_cpus);
+			have_policy = true;
 		}
+		cpufreq_cpu_put(policy);
 	}
 
 	cpumask_copy(cpumask, cpumask_of_node(pgdat->node_id));
-	cpumask_andnot(cpumask, cpumask, policy_max->related_cpus);
+	if (have_policy)
+		cpumask_andnot(cpumask, cpumask, &policy_cpus);
 
-	if (!cpumask_empty(cpumask)) {
+	if (!IS_ERR_OR_NULL(ux_page_pool_tsk) && !cpumask_empty(cpumask))
 		set_cpus_allowed_ptr(ux_page_pool_tsk, cpumask);
-	}
 }
 
 static int ux_page_pool_fillthread(void *p)
@@ -158,21 +173,29 @@ static int ux_page_pool_fillthread(void *p)
 	int record_i, record_j;
 #endif
 
-	if (unlikely(!ux_page_pool_enabled))
+	if (unlikely(!READ_ONCE(ux_page_pool_enabled)))
 		return -1;
 	/* FIXME:temporarily skip to avoid stability issues.
 	set_ux_page_pool_fillthread_cpus();
 	*/
 	while (!kthread_should_stop()) {
 		ret = wait_event_interruptible(kworkthread_waitq,
-						       (kworkthread_wait_flag == 1));
+						       kthread_should_stop() ||
+						       READ_ONCE(kworkthread_wait_flag) == 1);
 		if (ret < 0)
 			continue;
+		if (kthread_should_stop())
+			break;
 
-		kworkthread_wait_flag = 0;
+		WRITE_ONCE(kworkthread_wait_flag, 0);
+		if (!READ_ONCE(ux_page_pool_enabled) ||
+			!READ_ONCE(ux_page_pool_enable))
+			continue;
 
 		for (i = 0; i < NUM_ORDERS; i++) {
 			pool = pools[i];
+			if (!pool)
+				continue;
 			for (j = 0; j < UX_POOL_MIGRATETYPE_TYPES_SIZE; j++) {
 #ifdef UXPAGEPOOL_DEBUG
 				if( pool->count[j] < pool->low[j]) {
@@ -186,7 +209,11 @@ static int ux_page_pool_fillthread(void *p)
 					pool->order, j, pool->low[j], pool->high[j], pool->count[j], \
 					pool->gfp_mask);
 #endif
-				while (pool->count[j] < pool->high[j]) {
+				while (!kthread_should_stop() &&
+					READ_ONCE(ux_page_pool_enabled) &&
+					READ_ONCE(ux_page_pool_enable) &&
+					READ_ONCE(fillthread_enabled) &&
+					READ_ONCE(pool->count[j]) < READ_ONCE(pool->high[j])) {
 					if (page_pool_fill(pool, j) < 0)
 						msleep(20);
 				}
@@ -325,8 +352,9 @@ struct page *ux_page_pool_alloc_pages(unsigned int order, int migratetype, bool 
 	struct ux_page_pool *pool = NULL;
 	int order_ind = order_to_index(order);
 
-	if (unlikely(!ux_page_pool_enabled) || (order_ind == -1) || \
-		(migratetype < 0) || \
+	if (unlikely(!READ_ONCE(ux_page_pool_enabled) ||
+			READ_ONCE(ux_page_pool_enable) == 0) || (order_ind == -1) ||
+		(migratetype < 0) ||
 		(migratetype >= UX_POOL_MIGRATETYPE_TYPES_SIZE))
 		return NULL;
 
@@ -373,9 +401,10 @@ int ux_page_pool_refill(struct page *page, unsigned int order, int migratetype)
 	unsigned long free_pages;
 	int order_ind = order_to_index(order);
 
-	if (unlikely(!ux_page_pool_enable) || !ux_page_pool_enabled ||
-		!free_to_pool || !page || (order_ind == -1) ||
-		migratetype < 0 || migratetype > MIGRATE_MOVABLE)
+	if (unlikely(READ_ONCE(ux_page_pool_enable) == 0 ||
+			!READ_ONCE(ux_page_pool_enabled) || !READ_ONCE(free_to_pool) ||
+			!page || order_ind == -1 || migratetype < 0 ||
+			migratetype > MIGRATE_MOVABLE))
 		return false;
 
 	zone = page_zone(page);
@@ -391,7 +420,7 @@ int ux_page_pool_refill(struct page *page, unsigned int order, int migratetype)
 		return false;
 
 	pool = pools[order_ind];
-	if(pool == NULL)
+	if (pool == NULL)
 		return false;
 
 	return page_pool_add(pool, page, migratetype);
@@ -425,6 +454,9 @@ static ssize_t ux_page_pool_write(struct file *file,
 	ret = sscanf(str, "%d %d", &high_0, &high_1);
 
 	if (ret == 2) {
+		if (high_0 < 0 || high_1 < 0)
+			return -EINVAL;
+
 		for (i = 0; i < UX_POOL_MIGRATETYPE_TYPES_SIZE; i++) {
 			pool = pools[0];
 			spin_lock_irqsave(&pool->lock, flags);
@@ -450,22 +482,23 @@ static ssize_t ux_page_pool_write(struct file *file,
 	}
 
 	if (strstr(str, "fillthread_pause")) {
-		fillthread_enabled = false;
+		WRITE_ONCE(fillthread_enabled, false);
 		return len;
 	}
 
 	if (strstr(str, "fillthread_resume")) {
-		fillthread_enabled = true;
+		WRITE_ONCE(fillthread_enabled, true);
+		page_pool_wakeup_process(pools[0]);
 		return len;
 	}
 
 	if (strstr(str, "free_to_pool=0")) {
-		free_to_pool = false;
+		WRITE_ONCE(free_to_pool, false);
 		return len;
 	}
 
 	if (strstr(str, "free_to_pool=1")) {
-		free_to_pool = true;
+		WRITE_ONCE(free_to_pool, true);
 		return len;
 	}
 
@@ -494,10 +527,11 @@ static ssize_t ux_page_pool_read(struct file *file,
 			"page_pool alloc fail count:%d\n", ux_pool_alloc_fail);
 	len += snprintf(kbuf + len, PARA_BUF_LEN - len,
 			"page_pool fillthread status:%s\n",
-			fillthread_enabled ? "running" : "not running");
+			(READ_ONCE(ux_page_pool_enabled) && READ_ONCE(fillthread_enabled)) ?
+			"running" : "not running");
 	len += snprintf(kbuf + len, PARA_BUF_LEN - len,
 			"page_pool free_to_pool:%s\n",
-			free_to_pool ? "enabled" : "disabled");
+			READ_ONCE(free_to_pool) ? "enabled" : "disabled");
 
 	if (len == PARA_BUF_LEN)
 		kbuf[len - 1] = '\0';
@@ -520,39 +554,96 @@ static const struct file_operations ux_page_pool_fops = {
 };
 
 
-static int ux_page_pool_init(void)
+static void ux_page_pool_free_structs(void)
 {
 	int i;
-	static bool inited = false;
-	if (inited) {
-		pr_info("uxmem_opt already inited\n");
+
+	for (i = 0; i < NUM_ORDERS; i++) {
+		if (!IS_ERR_OR_NULL(pools[i]))
+			kfree(pools[i]);
+		pools[i] = NULL;
+	}
+}
+
+static int __ux_page_pool_init(void)
+{
+	int i;
+	int ret;
+
+	if (ux_page_pool_initialized) {
+		WRITE_ONCE(ux_page_pool_enabled, true);
+		page_pool_wakeup_process(pools[0]);
 		return 0;
 	}
 
-	if (!ux_page_pool_enable) {
-		pr_err("uxmem_opt is disabled\n");
-		return -EINVAL;
+	if (!READ_ONCE(ux_page_pool_enable)) {
+		WRITE_ONCE(ux_page_pool_enabled, false);
+		return 0;
 	}
 
+	init_waitqueue_head(&kworkthread_waitq);
+	WRITE_ONCE(kworkthread_wait_flag, 0);
+	ux_page_pool_tsk = NULL;
 	for (i = 0; i < NUM_ORDERS; i++) {
 		pools[i] = ux_page_pool_create((GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN |
 			   __GFP_NORETRY) & ~__GFP_RECLAIM, orders[i], page_pool_nr_pages[i]);
+		if (IS_ERR_OR_NULL(pools[i])) {
+			ret = IS_ERR(pools[i]) ? PTR_ERR(pools[i]) : -ENOMEM;
+			pools[i] = NULL;
+			goto err_free_pools;
+		}
 	}
-	ux_page_pool_enabled = true;
 
-	init_waitqueue_head(&kworkthread_waitq);
+	WRITE_ONCE(ux_page_pool_enabled, true);
+	WRITE_ONCE(fillthread_enabled, true);
 	ux_page_pool_tsk = kthread_run(ux_page_pool_fillthread, NULL, UX_PAGE_POOL_NAME);
 	if (IS_ERR_OR_NULL(ux_page_pool_tsk)) {
-		pr_err("%s:run ux_page_pool_fillthread failed!\n", __func__);
+		ret = IS_ERR(ux_page_pool_tsk) ? PTR_ERR(ux_page_pool_tsk) : -ENOMEM;
+		pr_err("%s:run ux_page_pool_fillthread failed: %d\n", __func__, ret);
+		ux_page_pool_tsk = NULL;
+		goto err_free_pools;
 	}
-	fillthread_enabled = true;
-	free_to_pool = true;
+
+	ux_page_pool_entry = proc_create("ux_page_pool", 0666, NULL,
+			&ux_page_pool_fops);
+	if (!ux_page_pool_entry) {
+		ret = -ENOMEM;
+		WRITE_ONCE(ux_page_pool_enabled, false);
+		WRITE_ONCE(fillthread_enabled, false);
+		WRITE_ONCE(kworkthread_wait_flag, 1);
+		wake_up_interruptible(&kworkthread_waitq);
+		kthread_stop(ux_page_pool_tsk);
+		ux_page_pool_tsk = NULL;
+		goto err_free_pools;
+	}
+
+	WRITE_ONCE(free_to_pool, true);
+	ux_page_pool_initialized = true;
 	page_pool_wakeup_process(pools[0]);
-
-	proc_create("ux_page_pool", 0666, NULL, &ux_page_pool_fops);
-
-	inited = true;
 	return 0;
+
+err_free_pools:
+	WRITE_ONCE(ux_page_pool_enabled, false);
+	WRITE_ONCE(fillthread_enabled, false);
+	WRITE_ONCE(free_to_pool, false);
+	if (ux_page_pool_entry) {
+		proc_remove(ux_page_pool_entry);
+		ux_page_pool_entry = NULL;
+	}
+	ux_page_pool_free_structs();
+	WRITE_ONCE(ux_page_pool_enable, 0);
+	return ret;
+}
+
+static int ux_page_pool_init(void)
+{
+	int ret;
+
+	mutex_lock(&ux_page_pool_init_lock);
+	ret = __ux_page_pool_init();
+	mutex_unlock(&ux_page_pool_init_lock);
+
+	return ret;
 }
 module_init(ux_page_pool_init);
 
@@ -565,9 +656,17 @@ int ux_page_pool_enable_handler(struct ctl_table *table, int write,
 	if (ret)
 		return ret;
 	if (write) {
-		if (ux_page_pool_enable) {
-			ux_page_pool_init();
+		if (READ_ONCE(ux_page_pool_enable)) {
+			ret = ux_page_pool_init();
+			if (ret)
+				WRITE_ONCE(ux_page_pool_enable, 0);
+		} else {
+			mutex_lock(&ux_page_pool_init_lock);
+			WRITE_ONCE(ux_page_pool_enabled, false);
+			WRITE_ONCE(kworkthread_wait_flag, 1);
+			wake_up_interruptible(&kworkthread_waitq);
+			mutex_unlock(&ux_page_pool_init_lock);
 		}
 	}
-	return 0;
+	return ret;
 }
