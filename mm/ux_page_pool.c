@@ -21,6 +21,7 @@
 #include <linux/sched/rt.h>
 
 #include "ux_page_pool.h"
+#include "internal.h"
 
 #include <linux/sysctl.h>
 #if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
@@ -232,13 +233,18 @@ struct ux_page_pool *ux_page_pool_create(gfp_t gfp_mask, unsigned int order, uns
 	return pool;
 }
 
-static void page_pool_add(struct ux_page_pool *pool, struct page *page, int migratetype)
+static bool page_pool_add(struct ux_page_pool *pool, struct page *page, int migratetype)
 {
+	bool added = false;
 	unsigned long flags;
 	spin_lock_irqsave(&pool->lock, flags);
-	list_add_tail(&page->lru, &pool->items[migratetype]);
-	pool->count[migratetype]++;
+	if (pool->count[migratetype] < pool->high[migratetype]) {
+		list_add_tail(&page->lru, &pool->items[migratetype]);
+		pool->count[migratetype]++;
+		added = true;
+	}
 	spin_unlock_irqrestore(&pool->lock, flags);
+	return added;
 }
 
 static struct page *page_pool_remove(struct ux_page_pool *pool, int migratetype)
@@ -274,13 +280,14 @@ static struct page *page_pool_remove(struct ux_page_pool *pool, int migratetype)
 static int page_pool_fill(struct ux_page_pool *pool, int migratetype)
 {
 	struct page *page;
-	gfp_t gfp_refill = pool->gfp_mask;
+	gfp_t gfp_refill;
 	unsigned long pfn;
 
-	if (NULL == pool) {
+	if (!pool) {
 		pr_err("%s: pool is NULL!\n", __func__);
 		return -EINVAL;
 	}
+	gfp_refill = pool->gfp_mask;
 
 	page = alloc_pages(gfp_refill, pool->order);
 	if (NULL == page)
@@ -290,16 +297,23 @@ static int page_pool_fill(struct ux_page_pool *pool, int migratetype)
 		__free_pages(page, pool->order);
 		return -EINVAL;
 	}
-	if (put_page_testzero(page)) {
-		pfn = page_to_pfn(page);
-		if (!free_unref_page_prepare2(page, pool->order, pfn)) {
-			__free_pages(page, pool->order);
-			pr_err("KEN_pages free_unref_page_prepare2 fail\n");
-			return -EINVAL;
-		}
+	if (!put_page_testzero(page)) {
+		pr_err("%s: alloc_pages returned a referenced page\n", __func__);
+		return -EBUSY;
+	}
+	pfn = page_to_pfn(page);
+	if (!free_unref_page_prepare2(page, pool->order, pfn)) {
+		set_page_refcounted(page);
+		__free_pages(page, pool->order);
+		pr_err("KEN_pages free_unref_page_prepare2 fail\n");
+		return -EINVAL;
 	}
 
-	page_pool_add(pool, page, migratetype);
+	if (!page_pool_add(pool, page, migratetype)) {
+		set_page_refcounted(page);
+		__free_pages(page, pool->order);
+		return -EAGAIN;
+	}
 	return true;
 }
 
@@ -380,11 +394,7 @@ int ux_page_pool_refill(struct page *page, unsigned int order, int migratetype)
 	if(pool == NULL)
 		return false;
 
-	if (pool->count[migratetype] >= pool->high[migratetype])
-		return false;
-
-	page_pool_add(pool, page, migratetype);
-	return true;
+	return page_pool_add(pool, page, migratetype);
 }
 
 static ssize_t ux_page_pool_write(struct file *file,
