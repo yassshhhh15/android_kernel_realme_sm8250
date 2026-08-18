@@ -11,6 +11,7 @@
 #include <linux/mm_types.h>
 #include <linux/slab.h>
 #include <linux/kthread.h>
+#include <linux/delay.h>
 #include <linux/uaccess.h>
 #include <linux/sched.h>
 #include <linux/signal.h>
@@ -184,8 +185,10 @@ static int ux_page_pool_fillthread(void *p)
 					pool->order, j, pool->low[j], pool->high[j], pool->count[j], \
 					pool->gfp_mask);
 #endif
-				while (pool->count[j] < pool->high[j])
-					page_pool_fill(pool, j);
+				while (pool->count[j] < pool->high[j]) {
+					if (page_pool_fill(pool, j) < 0)
+						msleep(20);
+				}
 #ifdef UXPAGEPOOL_DEBUG
 				pr_info("fill end   <<<<<order:%d migratetype:%d low: %d high: %d \
 					count:%d use %dms\n",
