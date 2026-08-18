@@ -2986,7 +2986,7 @@ static int rmqueue_bulk(struct zone *zone, unsigned int order,
  */
 static struct list_head *get_populated_pcp_list(struct zone *zone,
 			unsigned int order, struct per_cpu_pages *pcp,
-			int migratetype, unsigned int alloc_flags
+			gfp_t gfp_flags, int migratetype, unsigned int alloc_flags
 #if defined(CONFIG_OPLUS_UXMEM_OPT) && defined(OPLUS_FEATURE_SCHED_ASSIST)
 			, struct page **pg)
 #else
@@ -2997,7 +2997,8 @@ static struct list_head *get_populated_pcp_list(struct zone *zone,
 
 	if (list_empty(list)) {
 #if defined(CONFIG_OPLUS_UXMEM_OPT) && defined(OPLUS_FEATURE_SCHED_ASSIST)
-		if (ux_page_pool_enable) {
+		if (ux_page_pool_enable && zone_idx(zone) == ZONE_NORMAL &&
+			!(gfp_flags & (__GFP_DMA | __GFP_DMA32 | __GFP_CMA))) {
 			if (is_critical_zeroslowpath_task(current)) {
 				*pg = ux_page_pool_alloc_pages(0, migratetype == get_cma_migrate_type() \
 					? MIGRATE_MOVABLE : migratetype, false);
@@ -3498,7 +3499,7 @@ static struct page *__rmqueue_pcplist(struct zone *zone, int migratetype,
 		if (migratetype == MIGRATE_MOVABLE &&
 				gfp_flags & __GFP_CMA) {
 			list = get_populated_pcp_list(zone, 0, pcp,
-					get_cma_migrate_type(), alloc_flags
+				gfp_flags, get_cma_migrate_type(), alloc_flags
 #if defined(CONFIG_OPLUS_UXMEM_OPT) && defined(OPLUS_FEATURE_SCHED_ASSIST)
 					, &page);
 
@@ -3515,7 +3516,7 @@ static struct page *__rmqueue_pcplist(struct zone *zone, int migratetype,
 			 * free CMA pages.
 			 */
 			list = get_populated_pcp_list(zone, 0, pcp,
-					migratetype, alloc_flags
+				gfp_flags, migratetype, alloc_flags
 #if defined(CONFIG_OPLUS_UXMEM_OPT) && defined(OPLUS_FEATURE_SCHED_ASSIST)
 					, &page);
 
@@ -5049,7 +5050,8 @@ retry:
 		goto nopage;
 #if defined(CONFIG_OPLUS_UXMEM_OPT) && defined(OPLUS_FEATURE_SCHED_ASSIST) \
 		&& defined(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	if (ux_page_pool_enable) {
+	if (ux_page_pool_enable && zone_idx(ac->preferred_zoneref->zone) == ZONE_NORMAL &&
+		!(gfp_mask & (__GFP_DMA | __GFP_DMA32 | __GFP_CMA))) {
 		//1.Get page from ux page pool
 		//2.Set alloc_flags ALLOC_HARDER,and get page from buddy when get page fail from ux pool
 		if (is_critical_zeroslowpath_task(current)) {
