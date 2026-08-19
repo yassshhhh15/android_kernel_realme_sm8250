@@ -98,6 +98,8 @@ enum UX_STATE_TYPE
 enum INHERIT_UX_TYPE
 {
 	INHERIT_UX_BINDER = 0,
+	/* Keep asynchronous Binder inheritance separate from synchronous Binder. */
+	INHERIT_UX_BINDER_ASYNC,
 	INHERIT_UX_RWSEM,
 	INHERIT_UX_MUTEX,
 	INHERIT_UX_SEM,
