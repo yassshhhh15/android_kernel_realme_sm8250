@@ -575,6 +575,7 @@ struct binder_proc {
 	bool is_dead;
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
 	int proc_type;
+	bool proc_ux_inherit;
 #endif /* OPLUS_FEATURE_SCHED_ASSIST */
 
 	struct list_head todo;
@@ -714,6 +715,7 @@ void binder_async_ux_release_buffer(struct binder_buffer *buffer)
 	binder_unset_async_inherit_ux(task);
 	put_task_struct(task);
 }
+
 #endif /* OPLUS_FEATURE_SCHED_ASSIST */
 
 /**
@@ -1437,6 +1439,45 @@ out:
 	return ret;
 }
 #endif
+
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+/*
+ * A synchronous transaction queued for a process with max_threads == 0 is
+ * inherited by the process task rather than by a binder_thread.  Keep the
+ * cleanup local to the process work queue so a non-group-leader binder
+ * thread cannot leave that inheritance reference behind.
+ */
+static bool binder_worklist_has_sync_transaction_ilocked(struct list_head *list)
+{
+	struct binder_work *work;
+	struct binder_transaction *t;
+
+	list_for_each_entry(work, list, entry) {
+		if (work->type != BINDER_WORK_TRANSACTION)
+			continue;
+
+		t = container_of(work, struct binder_transaction, work);
+		if (!(t->flags & TF_ONE_WAY))
+			return true;
+	}
+
+	return false;
+}
+
+static bool binder_proc_has_sync_transaction_ilocked(struct binder_proc *proc)
+{
+	if (binder_worklist_has_sync_transaction_ilocked(&proc->todo))
+		return true;
+
+#ifdef CONFIG_OPLUS_BINDER_STRATEGY
+	if (proc == ob_target.ob_proc &&
+	    binder_worklist_has_sync_transaction_ilocked(&ob_target.ob_list))
+		return true;
+#endif
+
+	return false;
+}
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
 
 static bool binder_available_for_proc_work_ilocked(struct binder_thread *thread)
 {
@@ -3423,8 +3464,15 @@ static bool binder_proc_transaction(struct binder_transaction *t,
 #endif
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
 		if (sysctl_sched_assist_enabled && !oneway &&
-		    proc->max_threads == 0)
+		    proc->max_threads == 0) {
+			bool was_not_inherited = !test_inherit_ux(proc->tsk,
+								INHERIT_UX_BINDER);
+
 			binder_set_inherit_ux(proc->tsk, current);
+			if (was_not_inherited &&
+			    test_inherit_ux(proc->tsk, INHERIT_UX_BINDER))
+				proc->proc_ux_inherit = true;
+		}
 #endif /* OPLUS_FEATURE_SCHED_ASSIST */
 	} else {
 #if defined(CONFIG_OPLUS_FEATURE_BINDER_STATS_ENABLE)
@@ -4912,6 +4960,9 @@ retry:
 		struct binder_transaction *t = NULL;
 		struct binder_thread *t_from;
 		size_t trsize = sizeof(*trd);
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+		bool clear_proc_ux;
+#endif
 
 		binder_inner_proc_lock(proc);
 		if (!binder_worklist_empty_ilocked(&thread->todo))
@@ -4940,6 +4991,22 @@ retry:
 		w = binder_dequeue_work_head_ilocked(list);
 		if (binder_worklist_empty_ilocked(&thread->todo))
 			thread->process_todo = false;
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+		clear_proc_ux = w->type == BINDER_WORK_TRANSACTION &&
+		    !(container_of(w, struct binder_transaction, work)->flags &
+		      TF_ONE_WAY) &&
+		    (list == &proc->todo
+#ifdef CONFIG_OPLUS_BINDER_STRATEGY
+		     || list == &ob_target.ob_list
+#endif
+		    ) && proc->tsk && proc->tsk != thread->task &&
+		    proc->proc_ux_inherit &&
+		    !binder_proc_has_sync_transaction_ilocked(proc);
+		if (clear_proc_ux) {
+			binder_unset_inherit_ux(proc->tsk);
+			proc->proc_ux_inherit = false;
+		}
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
 
 		switch (w->type) {
 		case BINDER_WORK_TRANSACTION: {
@@ -5393,6 +5460,10 @@ static void binder_free_proc(struct binder_proc *proc)
 		kfree(device);
 	}
 	binder_alloc_deferred_release(&proc->alloc);
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+	if (proc->proc_ux_inherit)
+		binder_unset_inherit_ux(proc->tsk);
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
 	put_task_struct(proc->tsk);
 	put_cred(proc->cred);
 	binder_stats_deleted(BINDER_STAT_PROC);

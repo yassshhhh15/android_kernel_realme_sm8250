@@ -457,6 +457,7 @@ struct binder_proc {
 	bool is_dead;
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
 	int proc_type;
+	bool proc_ux_inherit;
 #endif /* OPLUS_FEATURE_SCHED_ASSIST */
 
 	struct list_head todo;
