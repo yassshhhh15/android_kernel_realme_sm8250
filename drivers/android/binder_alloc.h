@@ -27,6 +27,7 @@
 
 extern struct list_lru binder_alloc_lru;
 struct binder_transaction;
+struct task_struct;
 
 /**
  * struct binder_buffer - buffer used for binder transactions
@@ -35,6 +36,7 @@ struct binder_transaction;
  * @free:               %true if buffer is free
  * @allow_user_free:    %true if user is allowed to free buffer
  * @async_transaction:  %true if buffer is in use for an async txn
+ * @async_ux_task:      task receiving an async UX transaction, if any
  * @debug_id:           unique ID for debugging
  * @transaction:        pointer to associated struct binder_transaction
  * @target_node:        struct binder_node associated with this buffer
@@ -56,6 +58,9 @@ struct binder_buffer {
 	unsigned debug_id:29;
 
 	struct binder_transaction *transaction;
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+	struct task_struct *async_ux_task;
+#endif
 
 	struct binder_node *target_node;
 	size_t data_size;

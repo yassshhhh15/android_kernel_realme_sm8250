@@ -679,6 +679,8 @@ struct binder_transaction {
 	struct binder_priority	priority;
 	struct binder_priority	saved_priority;
 	bool    set_priority_called;
+	/* Set only for oneway transactions sent by an existing UX task. */
+	bool    async_ux;
 	kuid_t	sender_euid;
 	binder_uintptr_t security_ctx;
 	/**
@@ -3764,6 +3766,10 @@ static void binder_transaction(struct binder_proc *proc,
 	t->to_thread = target_thread;
 	t->code = tr->code;
 	t->flags = tr->flags;
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+	if ((t->flags & TF_ONE_WAY) && test_set_inherit_ux(current))
+		t->async_ux = true;
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
 	if (!(t->flags & TF_ONE_WAY) &&
 	    binder_supported_policy(current->policy)) {
 		/* Inherit supported policies for synchronous transactions */
@@ -5111,7 +5117,8 @@ retry:
 				task_tgid_nr_ns(sender,
 						task_active_pid_ns(current));
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
-			if (sysctl_sched_assist_enabled) {
+			/* t->from is only populated for synchronous transactions. */
+			if (!(t->flags & TF_ONE_WAY) && sysctl_sched_assist_enabled) {
 				binder_set_inherit_ux(thread->task, t_from->task);
 			}
 #endif /* OPLUS_FEATURE_SCHED_ASSIST */
@@ -5162,6 +5169,14 @@ retry:
 			return -EFAULT;
 		}
 		ptr += trsize;
+
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+		if ((t->flags & TF_ONE_WAY) && t->async_ux &&
+		    binder_set_async_inherit_ux(thread->task)) {
+			get_task_struct(thread->task);
+			WRITE_ONCE(t->buffer->async_ux_task, thread->task);
+		}
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
 
 		trace_binder_transaction_received(t);
 #ifdef CONFIG_SCHED_WALT
