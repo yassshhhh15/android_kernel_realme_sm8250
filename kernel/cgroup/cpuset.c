@@ -1707,6 +1707,7 @@ static void cpuset_calc_counter(struct task_struct *task)
 		get_task_struct(task);
 		rcu_read_unlock();
 
+		uid_perf_event_lock();
 		/* MUST FIX: calc the pevent only idx=0 instruction counters */
 		for (i = 0; i < 1/*UID_PERF_EVENTS*/; ++i) {
 			val = 0;
@@ -1730,6 +1731,7 @@ static void cpuset_calc_counter(struct task_struct *task)
 
 			}
 		}
+		uid_perf_event_unlock();
 
 		rcu_read_lock();
 		put_task_struct(task);
