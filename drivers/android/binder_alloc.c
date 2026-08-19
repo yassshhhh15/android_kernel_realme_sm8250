@@ -763,6 +763,9 @@ void binder_alloc_free_buf(struct binder_alloc *alloc,
 		buffer->clear_on_free = false;
 	}
 	mutex_lock(&alloc->mutex);
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+	binder_async_ux_release_buffer(buffer);
+#endif
 	binder_free_buf_locked(alloc, buffer);
 	mutex_unlock(&alloc->mutex);
 }
@@ -860,6 +863,11 @@ void binder_alloc_deferred_release(struct binder_alloc *alloc)
 			binder_alloc_clear_buf(alloc, buffer);
 			buffer->clear_on_free = false;
 		}
+
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+		binder_async_ux_release_buffer(buffer);
+#endif
+
 		binder_free_buf_locked(alloc, buffer);
 		buffers++;
 	}
