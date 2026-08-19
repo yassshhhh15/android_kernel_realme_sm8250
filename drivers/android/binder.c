@@ -692,6 +692,30 @@ struct binder_transaction {
 	spinlock_t lock;
 };
 
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+/*
+ * Async transactions are freed from userspace with BC_FREE_BUFFER after
+ * struct binder_transaction has already been released.  Keep the target
+ * task on the buffer so the async inheritance reference is removed from the
+ * task that actually received it, even if another Binder thread frees the
+ * buffer or the process is being torn down.
+ */
+void binder_async_ux_release_buffer(struct binder_buffer *buffer)
+{
+	struct task_struct *task;
+
+	if (!buffer)
+		return;
+
+	task = xchg(&buffer->async_ux_task, NULL);
+	if (!task)
+		return;
+
+	binder_unset_async_inherit_ux(task);
+	put_task_struct(task);
+}
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
+
 /**
  * struct binder_object - union of flat binder object types
  * @hdr:   generic object header

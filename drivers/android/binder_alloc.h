@@ -70,6 +70,10 @@ struct binder_buffer {
 	int    pid;
 };
 
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+void binder_async_ux_release_buffer(struct binder_buffer *buffer);
+#endif
+
 /**
  * struct binder_lru_page - page object used for binder shrinker
  * @page_ptr: pointer to physical page in mmap'd space
@@ -191,4 +195,3 @@ void binder_alloc_copy_from_buffer(struct binder_alloc *alloc,
 				   size_t bytes);
 
 #endif /* _LINUX_BINDER_ALLOC_H */
-

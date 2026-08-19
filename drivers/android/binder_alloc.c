@@ -742,6 +742,9 @@ void binder_alloc_free_buf(struct binder_alloc *alloc,
 			    struct binder_buffer *buffer)
 {
 	mutex_lock(&alloc->mutex);
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+	binder_async_ux_release_buffer(buffer);
+#endif
 	binder_free_buf_locked(alloc, buffer);
 	mutex_unlock(&alloc->mutex);
 }
@@ -835,6 +838,9 @@ void binder_alloc_deferred_release(struct binder_alloc *alloc)
 		/* Transaction should already have been freed */
 		BUG_ON(buffer->transaction);
 
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+		binder_async_ux_release_buffer(buffer);
+#endif
 		binder_free_buf_locked(alloc, buffer);
 		buffers++;
 	}
