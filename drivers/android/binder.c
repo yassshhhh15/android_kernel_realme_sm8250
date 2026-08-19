@@ -3464,13 +3464,8 @@ static bool binder_proc_transaction(struct binder_transaction *t,
 #endif
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
 		if (sysctl_sched_assist_enabled && !oneway &&
-		    proc->max_threads == 0) {
-			bool was_not_inherited = !test_inherit_ux(proc->tsk,
-								INHERIT_UX_BINDER);
-
-			binder_set_inherit_ux(proc->tsk, current);
-			if (was_not_inherited &&
-			    test_inherit_ux(proc->tsk, INHERIT_UX_BINDER))
+		    proc->max_threads == 0 && !proc->proc_ux_inherit) {
+			if (binder_set_proc_inherit_ux(proc->tsk, current))
 				proc->proc_ux_inherit = true;
 		}
 #endif /* OPLUS_FEATURE_SCHED_ASSIST */
@@ -5003,7 +4998,7 @@ retry:
 		    proc->proc_ux_inherit &&
 		    !binder_proc_has_sync_transaction_ilocked(proc);
 		if (clear_proc_ux) {
-			binder_unset_inherit_ux(proc->tsk);
+			binder_unset_proc_inherit_ux(proc->tsk);
 			proc->proc_ux_inherit = false;
 		}
 #endif /* OPLUS_FEATURE_SCHED_ASSIST */
@@ -5462,7 +5457,7 @@ static void binder_free_proc(struct binder_proc *proc)
 	binder_alloc_deferred_release(&proc->alloc);
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
 	if (proc->proc_ux_inherit)
-		binder_unset_inherit_ux(proc->tsk);
+		binder_unset_proc_inherit_ux(proc->tsk);
 #endif /* OPLUS_FEATURE_SCHED_ASSIST */
 	put_task_struct(proc->tsk);
 	put_cred(proc->cred);

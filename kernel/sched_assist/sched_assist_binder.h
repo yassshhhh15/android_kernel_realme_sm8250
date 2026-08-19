@@ -40,6 +40,52 @@ static inline void binder_unset_async_inherit_ux(struct task_struct *thread_task
 		unset_inherit_ux(thread_task, INHERIT_UX_BINDER_ASYNC);
 }
 
+/*
+ * A synchronous transaction queued without a target binder_thread is
+ * inherited by proc->tsk.  Keep that reference separate from the normal
+ * binder_thread reference so reply, wait and thread-release cleanup cannot
+ * consume the process-level ownership.
+ */
+static inline bool binder_set_proc_inherit_ux(struct task_struct *proc_task,
+		struct task_struct *from_task)
+{
+	int type;
+
+	if (!proc_task || !from_task)
+		return false;
+
+	type = get_ux_state_type(proc_task);
+	if (type != UX_STATE_NONE && type != UX_STATE_INHERIT)
+		return false;
+
+	if (test_set_inherit_ux(from_task)) {
+		set_inherit_ux(proc_task, INHERIT_UX_BINDER_PROC,
+			       from_task->ux_depth, from_task->ux_state);
+	} else if (test_task_identify_ux(from_task,
+					SA_TYPE_ID_CAMERA_PROVIDER)) {
+		set_inherit_ux(proc_task, INHERIT_UX_BINDER_PROC,
+			       from_task->ux_depth, SA_TYPE_LIGHT);
+	} else if (from_task->sched_class == &rt_sched_class) {
+		set_inherit_ux(proc_task, INHERIT_UX_BINDER_PROC,
+			       from_task->ux_depth, SA_TYPE_LIGHT);
+#ifdef CONFIG_OPLUS_FEATURE_AUDIO_OPT
+	} else if (is_audio_task(from_task)) {
+		set_inherit_ux(proc_task, INHERIT_UX_BINDER_PROC,
+			       from_task->ux_depth, SA_TYPE_LIGHT);
+#endif
+	} else {
+		return false;
+	}
+
+	return test_inherit_ux(proc_task, INHERIT_UX_BINDER_PROC);
+}
+
+static inline void binder_unset_proc_inherit_ux(struct task_struct *proc_task)
+{
+	if (test_inherit_ux(proc_task, INHERIT_UX_BINDER_PROC))
+		unset_inherit_ux(proc_task, INHERIT_UX_BINDER_PROC);
+}
+
 static inline void binder_set_inherit_ux(struct task_struct *thread_task, struct task_struct *from_task)
 {
 	if (from_task && test_set_inherit_ux(from_task)) {

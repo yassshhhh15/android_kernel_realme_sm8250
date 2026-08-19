@@ -104,6 +104,8 @@ enum INHERIT_UX_TYPE
 	INHERIT_UX_FUTEX,
 	/* Keep asynchronous Binder inheritance separate from synchronous Binder. */
 	INHERIT_UX_BINDER_ASYNC,
+	/* Keep process-level Binder inheritance separate from binder_thread UX. */
+	INHERIT_UX_BINDER_PROC,
 	INHERIT_UX_MAX,
 };
 enum ANMATION_TYPE
