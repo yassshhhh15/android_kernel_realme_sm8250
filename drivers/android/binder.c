@@ -3395,6 +3395,11 @@ static bool binder_proc_transaction(struct binder_transaction *t,
 #else
 		binder_enqueue_work_ilocked(&t->work, &proc->todo);
 #endif
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+		if (sysctl_sched_assist_enabled && !oneway &&
+		    proc->max_threads == 0)
+			binder_set_inherit_ux(proc->tsk, current);
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
 	} else {
 #if defined(CONFIG_OPLUS_FEATURE_BINDER_STATS_ENABLE)
 		if (NULL != proc && NULL != proc->tsk) {
