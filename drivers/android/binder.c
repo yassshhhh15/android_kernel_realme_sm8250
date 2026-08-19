@@ -4114,7 +4114,7 @@ static void binder_transaction(struct binder_proc *proc,
 
 		wake_up_interruptible_sync(&target_thread->wait);
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
-		if (sysctl_sched_assist_enabled && !proc->proc_type) {
+		if (!proc->proc_type) {
 			binder_unset_inherit_ux(thread->task);
 		}
 #endif /* OPLUS_FEATURE_SCHED_ASSIST */
@@ -4779,9 +4779,7 @@ static int binder_wait_for_work(struct binder_thread *thread,
 			list_add(&thread->waiting_thread_node,
 				 &proc->waiting_threads);
 
-			if (sysctl_sched_assist_enabled) {
-				binder_unset_inherit_ux(thread->task);
-			}
+			binder_unset_inherit_ux(thread->task);
 		}
 #else /* OPLUS_FEATURE_SCHED_ASSIST */
 		if (do_proc_work)
@@ -5139,6 +5137,10 @@ retry:
 		if (put_user(cmd, (uint32_t __user *)ptr)) {
 			if (t_from)
 				binder_thread_dec_tmpref(t_from);
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+			if (!(t->flags & TF_ONE_WAY))
+				binder_unset_inherit_ux(thread->task);
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
 
 			binder_cleanup_transaction(t, "put_user failed",
 						   BR_FAILED_REPLY);
@@ -5149,6 +5151,10 @@ retry:
 		if (copy_to_user(ptr, &tr, trsize)) {
 			if (t_from)
 				binder_thread_dec_tmpref(t_from);
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+			if (!(t->flags & TF_ONE_WAY))
+				binder_unset_inherit_ux(thread->task);
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
 
 			binder_cleanup_transaction(t, "copy_to_user failed",
 						   BR_FAILED_REPLY);
@@ -5428,6 +5434,11 @@ static int binder_thread_release(struct binder_proc *proc,
 		wake_up_pollfree(&thread->wait);
 
 	binder_inner_proc_unlock(thread->proc);
+
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+	/* A thread may be explicitly released and later recreated by the task. */
+	binder_unset_inherit_ux(thread->task);
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
 
 	/*
 	 * This is needed to avoid races between wake_up_pollfree() above and
