@@ -8,7 +8,38 @@
 #define _OPLUS_SCHED_BINDER_H_
 #include "sched_assist_common.h"
 
+extern const struct sched_class fair_sched_class;
 extern const struct sched_class rt_sched_class;
+
+/*
+ * Async Binder transactions do not retain struct binder_transaction until
+ * BC_FREE_BUFFER.  Give them a separate inheritance slot so synchronous
+ * Binder cleanup cannot accidentally consume an async reference.
+ */
+static inline bool binder_set_async_inherit_ux(struct task_struct *thread_task)
+{
+	int type;
+
+	if (!thread_task || !sysctl_sched_assist_enabled ||
+	    thread_task->sched_class != &fair_sched_class)
+		return false;
+
+	type = get_ux_state_type(thread_task);
+	if (type != UX_STATE_NONE && type != UX_STATE_INHERIT)
+		return false;
+
+	set_inherit_ux(thread_task, INHERIT_UX_BINDER_ASYNC,
+		       thread_task->ux_depth,
+		       thread_task->ux_state | SA_TYPE_HEAVY);
+	return true;
+}
+
+static inline void binder_unset_async_inherit_ux(struct task_struct *thread_task)
+{
+	if (test_inherit_ux(thread_task, INHERIT_UX_BINDER_ASYNC))
+		unset_inherit_ux(thread_task, INHERIT_UX_BINDER_ASYNC);
+}
+
 static inline void binder_set_inherit_ux(struct task_struct *thread_task, struct task_struct *from_task)
 {
 	if (from_task && test_set_inherit_ux(from_task)) {
