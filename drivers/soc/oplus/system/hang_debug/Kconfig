@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2020 Oplus. All rights reserved.
+config OPLUS_HANG_DEBUG
+	bool "OnePlus hang/freeze diagnostic framework (debug only)"
+	depends on OPLUS_SYSTEM_KERNEL
+	default n
+	help
+	  Debug-only hang/freeze diagnostic framework for SM8250 4.19.
+	  Provides bounded central recorder (HANGLOG), trace freeze,
+	  scheduler/task snapshots and optional minidump persistence.
+
+	  Must only be enabled in debug/eng builds. Release builds
+	  must keep this disabled to preserve existing behaviour.
+
+config OPLUS_HANG_DEBUG_MINIDUMP
+	bool "Persist HANGLOG to Qualcomm minidump"
+	depends on OPLUS_HANG_DEBUG
+	depends on QCOM_MINIDUMP
+	default y
+	help
+	  Register HANGLOG buffer with Qualcomm minidump via
+	  msm_minidump_add_region for post-reboot extraction.
+
+config OPLUS_HANG_DEBUG_TRACE
+	bool "Freeze ftrace on hang snapshot"
+	depends on OPLUS_HANG_DEBUG
+	depends on TRACING
+	default y
+	help
+	  Freeze ftrace ring buffer via tracing_off() at snapshot time
+	  to preserve the last seconds before a freeze.
+
+config OPLUS_HANG_DEBUG_USER_STACK
+	bool "Capture userspace native stacks (bounded)"
+	depends on OPLUS_HANG_DEBUG
+	default n
+	help
+	  Enable bounded ARM64 FP userspace unwinder. Current task uses
+	  __copy_from_user_inatomic; remote tasks use access_process_vm
+	  with strict validation (alignment, range, monotonic, depth 32).
+	  Debug-only due to mm lifetime races.
+
+config OPLUS_HANG_DEBUG_VERBOSE_PRINTK
+	bool "Verbose printk for hang debug"
+	depends on OPLUS_HANG_DEBUG
+	default n
+	help
+	  Relax ratelimits only for hang_debug paths. Do not disable
+	  global printk ratelimits.
+
+config OPLUS_HANG_DEBUG_SYSTEM_SERVER_PERMISSIVE
+	bool "system_server permissive debug mode"
+	depends on OPLUS_HANG_DEBUG
+	depends on SECURITY_SELINUX
+	default n
+	help
+	  DEBUG-ONLY: make only system_server domain permissive while
+	  keeping SELinux globally enforcing (policydb.permissive_map).
+	  Requires careful policy load ordering. P4 / DEFER.
