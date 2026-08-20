@@ -59,6 +59,19 @@ void hang_debug_snapshot_atomic(enum hang_debug_reason reason);
 void hang_debug_trace_freeze(void);
 void hang_debug_show_state(void);
 int hang_debug_binder_snapshot(void);
+void hang_debug_log(const char *fmt, ...) __printf(1, 2);
+
+/* ARM64 bounded userspace unwinder (current and remote) */
+#ifdef CONFIG_OPLUS_HANG_DEBUG_USER_STACK
+int hang_debug_dump_user_stack(struct task_struct *tsk,
+			       struct pt_regs *regs);
+#else
+static inline int hang_debug_dump_user_stack(struct task_struct *tsk,
+					     struct pt_regs *regs)
+{
+	return 0;
+}
+#endif
 
 #else /* !CONFIG_OPLUS_HANG_DEBUG */
 
@@ -69,6 +82,12 @@ static inline void hang_debug_snapshot_atomic(enum hang_debug_reason r) {}
 static inline void hang_debug_trace_freeze(void) {}
 static inline void hang_debug_show_state(void) {}
 static inline int hang_debug_binder_snapshot(void) { return 0; }
+static inline void hang_debug_log(const char *fmt, ...) {}
+static inline int hang_debug_dump_user_stack(struct task_struct *tsk,
+					     struct pt_regs *regs)
+{
+	return 0;
+}
 
 #endif /* CONFIG_OPLUS_HANG_DEBUG */
 
