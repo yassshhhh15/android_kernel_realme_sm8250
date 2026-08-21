@@ -316,7 +316,7 @@ static void parse_light_sensor_dts(struct sensor_hw* hw, struct device_node *ch_
 		} else if (0 == strncmp(als_feature[di], "als_ratio_type", strlen("als_ratio_type"))) {
 			hw->feature.feature[di] = 0; /*set defaut zero*/
 		} else {
-			pr_info("parse %s failed!", als_feature[di]);
+			pr_debug("parse %s failed!", als_feature[di]);
 		}
 
 		SENSOR_DEVINFO_DEBUG("light feature[%s] : %d\n", als_feature[di], hw->feature.feature[di]);
@@ -331,7 +331,7 @@ static void parse_light_sensor_dts(struct sensor_hw* hw, struct device_node *ch_
 			hw->feature.parameter[di] = 1001; /*set defaut value 1001*/
 		} else {
 			hw->feature.parameter[di] = 0; /*set defaut param*/
-			pr_info("parse %s failed!", light_para[di]);
+			pr_debug("parse %s failed!", light_para[di]);
 		}
 		SENSOR_DEVINFO_DEBUG("light_para[%s] : %d\n", light_para[di], hw->feature.parameter[di]);
 	}
@@ -1615,4 +1615,3 @@ arch_initcall(oplus_devinfo_init);
 
 MODULE_DESCRIPTION("sensor devinfo");
 MODULE_LICENSE("GPL");
-

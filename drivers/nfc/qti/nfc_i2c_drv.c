@@ -239,7 +239,7 @@ int i2c_write(struct nfc_dev *nfc_dev, const char *buf, size_t count,
 	if (count > MAX_DL_BUFFER_SIZE)
 		count = MAX_DL_BUFFER_SIZE;
 
-	pr_err("%s : writing %zu bytes.\n", __func__, count);
+	pr_debug("%s : writing %zu bytes.\n", __func__, count);
 
 	NFCLOG_IPC(nfc_dev, false, "%s sending %d B", __func__, count);
 

@@ -178,10 +178,6 @@ static void alarmtimer_enqueue(struct alarm_base *base, struct alarm *alarm)
 {
 	if (alarm->state & ALARMTIMER_STATE_ENQUEUED)
 		timerqueue_del(&base->timerqueue, &alarm->node);
-	// No need to apply this part for user build, enable this part only for temperature debug build.
-	pr_info("[oem][alarm]%s: comm:%s pid:%d exp:%llu func:%ps\n", __func__,
-	current->comm, current->pid,
-	ktime_to_ms(alarm->node.expires), alarm->function);//This print code could be removed for release build.
 
 	timerqueue_add(&base->timerqueue, &alarm->node);
 	alarm->state |= ALARMTIMER_STATE_ENQUEUED;

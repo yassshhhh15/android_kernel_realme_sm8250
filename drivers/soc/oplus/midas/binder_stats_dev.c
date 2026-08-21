@@ -1060,7 +1060,7 @@ static long binder_stats_driver_ioctl(struct file *filp, unsigned int cmd, unsig
 		}
 		break;
 	default: {
-			BINDER_STATS_LOGE("unknown ioctl cmd:%d\n", cmd);
+			pr_debug_ratelimited("unknown ioctl cmd:%d\n", cmd);
 			ret = BINDER_STATS_CTL_RET_INVALID;
 		}
 		break;

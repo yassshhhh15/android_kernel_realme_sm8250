@@ -775,7 +775,7 @@ static void oplus_parse_service_name(struct binder_transaction_data *tr,
 			}
 			sname[len] = '\0';
 		}
-		pr_info("context.name[%s] tr.size:%lu service:%s\n",
+		pr_debug("context.name[%s] tr.size:%lu service:%s\n",
 			proc->context->name, (unsigned long)tr->data_size, sname);
 	} else {
 		if (NULL != tr && 0 != tr->target.handle) {
