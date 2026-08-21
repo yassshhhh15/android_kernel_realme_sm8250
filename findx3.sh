@@ -21,6 +21,7 @@ RESUKISU_BACKUP_DIR=""
 RESUKISU_LINK_STATE="absent"
 RESUKISU_LINK_TARGET=""
 PACKAGE_DIR=""
+RESUKISU_LOG_PATCH="$KERNEL_DIR/findx3-resukisu-log-noise.diff"
 
 usage() {
 	cat <<EOF
@@ -168,6 +169,14 @@ prepare_resukisu() {
 	if [[ "$selected_ref" != "$expected_ref" ]]; then
 		die "ReSukiSU checkout mismatch: requested $RESUKISU_REF, got $selected_ref"
 	fi
+
+	[[ -f "$RESUKISU_LOG_PATCH" ]] ||
+		die "missing ReSukiSU log policy patch: $RESUKISU_LOG_PATCH"
+	if ! git -C KernelSU apply --unidiff-zero --check "$RESUKISU_LOG_PATCH"; then
+		die "ReSukiSU log policy patch does not apply to ref: $RESUKISU_REF"
+	fi
+	git -C KernelSU apply --unidiff-zero "$RESUKISU_LOG_PATCH" ||
+		die "failed to apply ReSukiSU log policy patch"
 }
 
 if (( RESUKISU_ENABLED )); then
