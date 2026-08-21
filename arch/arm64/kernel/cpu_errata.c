@@ -748,6 +748,24 @@ static const struct midr_range arm64_workaround_845719_cpus[] = {
 
 #endif
 
+#ifdef CONFIG_ARM64_WORKAROUND_REPEAT_TLBI
+
+static const struct midr_range arm64_repeat_tlbi_cpus[] = {
+	/* Qualcomm Falkor v1 */
+	MIDR_ALL_VERSIONS(MIDR_QCOM_FALKOR_V1),
+#ifdef CONFIG_ARM64_ERRATUM_4118414
+	/* Qualcomm Kryo5S is SM8250's Cortex-A76/A77-derived CPU */
+	MIDR_ALL_VERSIONS(MIDR_KRYO5S),
+	/* Cortex-A76 all versions */
+	MIDR_ALL_VERSIONS(MIDR_CORTEX_A76),
+	/* Cortex-A77 all versions */
+	MIDR_ALL_VERSIONS(MIDR_CORTEX_A77),
+#endif
+	{},
+};
+
+#endif
+
 #ifdef CONFIG_ARM64_ERRATUM_1742098
 static struct midr_range broken_aarch32_aes[] = {
 	MIDR_RANGE(MIDR_CORTEX_A57, 0, 1, 0xf, 0xf),
@@ -913,11 +931,11 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 		.matches = is_kryo_midr,
 	},
 #endif
-#ifdef CONFIG_QCOM_FALKOR_ERRATUM_1009
+#ifdef CONFIG_ARM64_WORKAROUND_REPEAT_TLBI
 	{
-		.desc = "Qualcomm Technologies Falkor erratum 1009",
+		.desc = "Qualcomm Falkor 1009, ARM CVE-2025-10263",
 		.capability = ARM64_WORKAROUND_REPEAT_TLBI,
-		ERRATA_MIDR_REV(MIDR_QCOM_FALKOR_V1, 0, 0),
+		ERRATA_MIDR_RANGE_LIST(arm64_repeat_tlbi_cpus),
 	},
 #endif
 #ifdef CONFIG_ARM64_ERRATUM_858921
