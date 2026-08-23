@@ -293,6 +293,10 @@ DEFINE_EVENT(binder_buffer_class, binder_transaction_buffer_release,
 	TP_PROTO(struct binder_buffer *buffer),
 	TP_ARGS(buffer));
 
+DEFINE_EVENT(binder_buffer_class, binder_transaction_update_buffer_release,
+	TP_PROTO(struct binder_buffer *buffer),
+	TP_ARGS(buffer));
+
 DEFINE_EVENT(binder_buffer_class, binder_transaction_failed_buffer_release,
 	TP_PROTO(struct binder_buffer *buffer),
 	TP_ARGS(buffer));

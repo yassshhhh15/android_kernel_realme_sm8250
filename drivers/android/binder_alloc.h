@@ -34,6 +34,7 @@ struct task_struct;
  * @entry:              entry alloc->buffers
  * @rb_node:            node for allocated_buffers/free_buffers rb trees
  * @free:               %true if buffer is free
+ * @clear_on_free:      %true if buffer must be zeroed after use
  * @allow_user_free:    %true if user is allowed to free buffer
  * @async_transaction:  %true if buffer is in use for an async txn
  * @oneway_spam_suspect: %true if this allocation crossed the spam threshold
@@ -57,7 +58,8 @@ struct binder_buffer {
 	unsigned allow_user_free:1;
 	unsigned async_transaction:1;
 	unsigned oneway_spam_suspect:1;
-	unsigned debug_id:28;
+	unsigned clear_on_free:1;
+	unsigned debug_id:27;
 
 	struct binder_transaction *transaction;
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
