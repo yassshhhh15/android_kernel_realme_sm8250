@@ -36,6 +36,7 @@ struct task_struct;
  * @free:               %true if buffer is free
  * @allow_user_free:    %true if user is allowed to free buffer
  * @async_transaction:  %true if buffer is in use for an async txn
+ * @oneway_spam_suspect: %true if this allocation crossed the spam threshold
  * @async_ux_task:      task receiving an async UX transaction, if any
  * @debug_id:           unique ID for debugging
  * @transaction:        pointer to associated struct binder_transaction
@@ -55,7 +56,8 @@ struct binder_buffer {
 	unsigned free:1;
 	unsigned allow_user_free:1;
 	unsigned async_transaction:1;
-	unsigned debug_id:29;
+	unsigned oneway_spam_suspect:1;
+	unsigned debug_id:28;
 
 	struct binder_transaction *transaction;
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
@@ -104,6 +106,8 @@ struct binder_lru_page {
  * @buffer_size:        size of address space specified via mmap
  * @pid:                pid for associated binder_proc (invariant after init)
  * @pages_high:         high watermark of offset in @pages
+ * @oneway_spam_detected: %true after reporting a suspect until async buffer
+ *                      space returns to a healthy state
  *
  * Bookkeeping structure for per-proc address space management for binder
  * buffers. It is normally initialized during binder_init() and binder_mmap()
@@ -124,6 +128,7 @@ struct binder_alloc {
 	uint32_t buffer_free;
 	int pid;
 	size_t pages_high;
+	bool oneway_spam_detected;
 };
 
 #ifdef CONFIG_ANDROID_BINDER_IPC_SELFTEST
