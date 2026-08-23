@@ -305,6 +305,7 @@ struct binder_work {
 	enum binder_work_type {
 		BINDER_WORK_TRANSACTION = 1,
 		BINDER_WORK_TRANSACTION_COMPLETE,
+		BINDER_WORK_TRANSACTION_PENDING,
 		BINDER_WORK_TRANSACTION_ONEWAY_SPAM_SUSPECT,
 		BINDER_WORK_RETURN_ERROR,
 		BINDER_WORK_NODE,
@@ -3435,6 +3436,8 @@ static inline bool is_binder_proc_sf(struct binder_proc *proc)
  * Return:	0 if the transaction was successfully queued
  *		BR_DEAD_REPLY if the target process or thread is dead
  *		BR_FROZEN_REPLY if a synchronous transaction was rejected
+ *		BR_TRANSACTION_PENDING_FROZEN if an asynchronous transaction
+ *		was queued to a frozen target process
  */
 #if defined(OPLUS_FEATURE_SCHED_ASSIST)
 extern bool is_sf(struct task_struct *p);
@@ -3570,6 +3573,9 @@ static int binder_proc_transaction(struct binder_transaction *t,
 	proc->outstanding_txns++;
 	binder_inner_proc_unlock(proc);
 	binder_node_unlock(node);
+
+	if (oneway && frozen)
+		return BR_TRANSACTION_PENDING_FROZEN;
 
 	return 0;
 }
@@ -4324,9 +4330,12 @@ static void binder_transaction(struct binder_proc *proc,
 	} else {
 		BUG_ON(target_node == NULL);
 		BUG_ON(t->buffer->async_transaction != 1);
-		binder_enqueue_thread_work(thread, tcomplete);
 		return_error = binder_proc_transaction(t, target_proc, NULL);
-		if (return_error)
+		if (return_error == BR_TRANSACTION_PENDING_FROZEN)
+			tcomplete->type = BINDER_WORK_TRANSACTION_PENDING;
+		binder_enqueue_thread_work(thread, tcomplete);
+		if (return_error &&
+		    return_error != BR_TRANSACTION_PENDING_FROZEN)
 			goto err_dead_proc_or_thread;
 	}
 	if (target_thread)
@@ -5308,10 +5317,13 @@ retry:
 			binder_stat_br(proc, thread, cmd);
 		} break;
 		case BINDER_WORK_TRANSACTION_COMPLETE:
+		case BINDER_WORK_TRANSACTION_PENDING:
 		case BINDER_WORK_TRANSACTION_ONEWAY_SPAM_SUSPECT: {
 			if (proc->oneway_spam_detection_enabled &&
 			    w->type == BINDER_WORK_TRANSACTION_ONEWAY_SPAM_SUSPECT)
 				cmd = BR_ONEWAY_SPAM_SUSPECT;
+			else if (w->type == BINDER_WORK_TRANSACTION_PENDING)
+				cmd = BR_TRANSACTION_PENDING_FROZEN;
 			else
 				cmd = BR_TRANSACTION_COMPLETE;
 			binder_inner_proc_unlock(proc);
@@ -5681,6 +5693,7 @@ static void binder_release_work(struct binder_proc *proc,
 				"undelivered TRANSACTION_ERROR: %u\n",
 				e->cmd);
 		} break;
+		case BINDER_WORK_TRANSACTION_PENDING:
 		case BINDER_WORK_TRANSACTION_COMPLETE:
 		case BINDER_WORK_TRANSACTION_ONEWAY_SPAM_SUSPECT: {
 			binder_debug(BINDER_DEBUG_DEAD_TRANSACTION,
@@ -7010,6 +7023,9 @@ static void print_binder_work_ilocked(struct seq_file *m,
 	} break;
 	case BINDER_WORK_TRANSACTION_COMPLETE:
 		seq_printf(m, "%stransaction complete\n", prefix);
+		break;
+	case BINDER_WORK_TRANSACTION_PENDING:
+		seq_printf(m, "%stransaction pending\n", prefix);
 		break;
 	case BINDER_WORK_TRANSACTION_ONEWAY_SPAM_SUSPECT:
 		seq_printf(m, "%soneway spam suspect\n", prefix);
