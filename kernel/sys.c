@@ -1240,17 +1240,25 @@ static int override_release(char __user *release, size_t len)
 	return ret;
 }
 
+#define ANDROID_BPF_COMPAT_RELEASE "5.15.178"
+
+static bool android_bpf_compat_task(void)
+{
+	return !strcmp(current->comm, "bpfloader") ||
+	       !strcmp(current->comm, "netbpfload") ||
+	       !strcmp(current->comm, "netd") ||
+	       !strcmp(current->comm, "uprobestatsbpfl");
+}
+
 SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
 {
 	struct new_utsname tmp;
 
 	down_read(&uts_sem);
 	memcpy(&tmp, utsname(), sizeof(tmp));
-	if (!strncmp(current->comm, "bpfloader", 9) ||
-	    !strncmp(current->comm, "netbpfload", 10) ||
-	    !strncmp(current->comm, "netd", 4) ||
-	    !strncmp(current->comm, "uprobestats", 11)) {
-		strcpy(tmp.release, "5.15.136");
+	if (android_bpf_compat_task()) {
+		strscpy(tmp.release, ANDROID_BPF_COMPAT_RELEASE,
+			sizeof(tmp.release));
 		pr_debug("fake uname: %s release=%s\n",
 			 current->comm, tmp.release);
 	}
