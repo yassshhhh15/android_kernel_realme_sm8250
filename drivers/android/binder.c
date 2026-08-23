@@ -59,6 +59,7 @@
 #include <linux/miscdevice.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/net.h>
 #include <linux/nsproxy.h>
 #include <linux/poll.h>
 #include <linux/debugfs.h>
@@ -84,6 +85,7 @@
 
 #include "binder_alloc.h"
 #include "binder_internal.h"
+#include "binder_netlink.h"
 #include "binder_trace.h"
 
 #ifdef CONFIG_OPLUS_FEATURE_FRAME_BOOST
@@ -713,6 +715,8 @@ struct binder_thread {
 
 struct binder_transaction {
 	int debug_id;
+	u32 from_pid;
+	u32 from_tid;
 	struct binder_work work;
 	struct binder_thread *from;
 	struct binder_transaction *from_parent;
@@ -725,6 +729,7 @@ struct binder_transaction {
 	struct binder_buffer *buffer;
 	unsigned int	code;
 	unsigned int	flags;
+	bool is_reply;
 	struct binder_priority	priority;
 	struct binder_priority	saved_priority;
 	bool    set_priority_called;
@@ -3622,6 +3627,85 @@ static struct binder_node *binder_get_node_refs_for_txn(
 	return target_node;
 }
 
+#ifndef CONFIG_ANDROID_BINDER_NETLINK
+static void binder_netlink_report(struct binder_proc *proc,
+				  struct binder_transaction *t,
+				  u32 data_size, u32 error)
+{
+	(void)proc;
+	(void)t;
+	(void)data_size;
+	(void)error;
+}
+#else
+/**
+ * binder_netlink_report() - report a transaction failure via netlink
+ * @proc:	the binder proc sending the transaction
+ * @t:		the binder transaction that failed
+ * @data_size:	the user provided data size for the transaction
+ * @error:	enum binder_driver_return_protocol returned to sender
+ *
+ * Note that t->buffer is not safe to access here, as it may have been
+ * released (or not yet allocated). Callers should guarantee all transaction
+ * items used here are safe to access.
+ */
+static void binder_netlink_report(struct binder_proc *proc,
+				  struct binder_transaction *t,
+				  u32 data_size,
+				  u32 error)
+{
+	const char *context = proc->context->name;
+	struct sk_buff *skb;
+	void *hdr;
+
+	if (!genl_has_listeners(&binder_nl_family, &init_net,
+				BINDER_NLGRP_REPORT))
+		return;
+
+	trace_binder_netlink_report(context, t, data_size, error);
+
+	skb = genlmsg_new(GENLMSG_DEFAULT_SIZE, GFP_KERNEL);
+	if (!skb)
+		return;
+
+	hdr = genlmsg_put(skb, 0, 0, &binder_nl_family, 0, BINDER_CMD_REPORT);
+	if (!hdr)
+		goto free_skb;
+
+	if (nla_put_u32(skb, BINDER_A_REPORT_ERROR, error) ||
+	    nla_put_string(skb, BINDER_A_REPORT_CONTEXT, context) ||
+	    nla_put_u32(skb, BINDER_A_REPORT_FROM_PID, t->from_pid) ||
+	    nla_put_u32(skb, BINDER_A_REPORT_FROM_TID, t->from_tid))
+		goto cancel_skb;
+
+	if (t->to_proc &&
+	    nla_put_u32(skb, BINDER_A_REPORT_TO_PID, t->to_proc->pid))
+		goto cancel_skb;
+
+	if (t->to_thread &&
+	    nla_put_u32(skb, BINDER_A_REPORT_TO_TID, t->to_thread->pid))
+		goto cancel_skb;
+
+	if (t->is_reply && nla_put_flag(skb, BINDER_A_REPORT_IS_REPLY))
+		goto cancel_skb;
+
+	if (nla_put_u32(skb, BINDER_A_REPORT_FLAGS, t->flags) ||
+	    nla_put_u32(skb, BINDER_A_REPORT_CODE, t->code) ||
+	    nla_put_u32(skb, BINDER_A_REPORT_DATA_SIZE, data_size))
+		goto cancel_skb;
+
+	genlmsg_end(skb, hdr);
+	genlmsg_multicast(&binder_nl_family, skb, 0, BINDER_NLGRP_REPORT,
+			  GFP_KERNEL);
+	return;
+
+cancel_skb:
+	genlmsg_cancel(skb, hdr);
+free_skb:
+	nlmsg_free(skb);
+}
+#endif
+
 static void binder_set_txn_from_error(struct binder_transaction *t, int id,
 				      uint32_t command, int32_t param)
 {
@@ -3892,6 +3976,8 @@ static void binder_transaction(struct binder_proc *proc,
 	}
 	binder_stats_created(BINDER_STAT_TRANSACTION);
 	spin_lock_init(&t->lock);
+	t->from_pid = proc->pid;
+	t->from_tid = thread->pid;
 
 	tcomplete = kzalloc(sizeof(*tcomplete), GFP_KERNEL);
 	if (tcomplete == NULL) {
@@ -3932,6 +4018,7 @@ static void binder_transaction(struct binder_proc *proc,
 	t->to_thread = target_thread;
 	t->code = tr->code;
 	t->flags = tr->flags;
+	t->is_reply = reply;
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
 	if ((t->flags & TF_ONE_WAY) && test_set_inherit_ux(current))
 		t->async_ux = true;
@@ -4269,10 +4356,13 @@ static void binder_transaction(struct binder_proc *proc,
 			goto err_bad_object_type;
 		}
 	}
-	if (t->buffer->oneway_spam_suspect)
+	if (t->buffer->oneway_spam_suspect) {
 		tcomplete->type = BINDER_WORK_TRANSACTION_ONEWAY_SPAM_SUSPECT;
-	else
+		binder_netlink_report(proc, t, tr->data_size,
+				      BR_ONEWAY_SPAM_SUSPECT);
+	} else {
 		tcomplete->type = BINDER_WORK_TRANSACTION_COMPLETE;
+	}
 	t->work.type = BINDER_WORK_TRANSACTION;
 
 	if (reply) {
@@ -4328,11 +4418,18 @@ static void binder_transaction(struct binder_proc *proc,
 			goto err_dead_proc_or_thread;
 		}
 	} else {
+		struct binder_transaction t_copy;
+
 		BUG_ON(target_node == NULL);
 		BUG_ON(t->buffer->async_transaction != 1);
+		t_copy = *t;
+
 		return_error = binder_proc_transaction(t, target_proc, NULL);
-		if (return_error == BR_TRANSACTION_PENDING_FROZEN)
+		if (return_error == BR_TRANSACTION_PENDING_FROZEN) {
 			tcomplete->type = BINDER_WORK_TRANSACTION_PENDING;
+			binder_netlink_report(proc, &t_copy, tr->data_size,
+					      return_error);
+		}
 		binder_enqueue_thread_work(thread, tcomplete);
 		if (return_error &&
 		    return_error != BR_TRANSACTION_PENDING_FROZEN)
@@ -4375,6 +4472,7 @@ err_get_secctx_failed:
 	kfree(tcomplete);
 	binder_stats_deleted(BINDER_STAT_TRANSACTION_COMPLETE);
 err_alloc_tcomplete_failed:
+	binder_netlink_report(proc, t, tr->data_size, return_error);
 	kfree(t);
 	binder_stats_deleted(BINDER_STAT_TRANSACTION);
 err_alloc_t_failed:
@@ -7747,11 +7845,22 @@ static int __init binder_init(void)
 		}
 	}
 
-	ret = init_binderfs();
+#ifdef CONFIG_ANDROID_BINDER_NETLINK
+	ret = genl_register_family(&binder_nl_family);
 	if (ret)
 		goto err_init_binder_device_failed;
+#endif
+
+	ret = init_binderfs();
+	if (ret)
+		goto err_init_binderfs_failed;
 
 	return ret;
+
+err_init_binderfs_failed:
+#ifdef CONFIG_ANDROID_BINDER_NETLINK
+	genl_unregister_family(&binder_nl_family);
+#endif
 
 err_init_binder_device_failed:
 	hlist_for_each_entry_safe(device, tmp, &binder_devices, hlist) {
