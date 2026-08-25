@@ -663,6 +663,9 @@ static void tp_touch_release(struct touchpanel_data *ts)
 	ts->view_area_touched = 0; //realse all touch point,must clear this flag
 	ts->touch_count = 0;
 	ts->irq_slot = 0;
+	if (ts->grip_info) {
+		kernel_grip_reset(ts->grip_info);
+	}
 #ifdef CONFIG_TOUCHPANEL_ALGORITHM
 	release_algorithm_points(ts);
 #endif
@@ -843,6 +846,9 @@ static void tp_touch_handle(struct touchpanel_data *ts)
 	}
 
 	mutex_lock(&ts->report_mutex);
+	if (ts->grip_info) {
+		obj_attention = notify_prevention_handle(ts->grip_info, obj_attention, points);
+	}
 
 #ifdef CONFIG_TOUCHPANEL_ALGORITHM
 	obj_attention = touch_algorithm_handle(ts, obj_attention, points);
@@ -2948,6 +2954,11 @@ static ssize_t proc_dir_control_write(struct file *file, const char __user *buff
 	}
 
 	TPD_INFO("%s: value = %d\n", __func__, temp);
+	if (ts->grip_info) {
+		mutex_lock(&ts->grip_info->grip_mutex);
+		ts->grip_info->touch_dir = temp;
+		mutex_unlock(&ts->grip_info->grip_mutex);
+	}
 	if (ts->ts_ops->set_touch_direction) {
 		ts->ts_ops->set_touch_direction(ts->chip_data, temp);
 	}
@@ -4740,6 +4751,15 @@ static int init_touchpanel_proc(struct touchpanel_data *ts)
 			TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__, __LINE__);
 		}
 	}
+	if (ts->kernel_grip_support && !ts->edge_limit_support &&
+	    !ts->fw_edge_limit_support && !ts->oos_edge_limit_support) {
+		prEntry_tmp = proc_create_data("oplus_tp_direction", 0666, prEntry_tp,
+					       &touch_dir_proc_fops, ts);
+		if (prEntry_tmp == NULL) {
+			ret = -ENOMEM;
+			TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__, __LINE__);
+		}
+	}
 
 	//proc files-step2-4:/proc/touchpanel/double_tap_enable (black gesture related interface)
 	if (ts->black_gesture_support) {
@@ -4932,6 +4952,16 @@ static int init_touchpanel_proc(struct touchpanel_data *ts)
 #endif // end of CONFIG_OPLUS_TP_APK
 
 	ts->prEntry_tp = prEntry_tp;
+	if (ts->kernel_grip_support && !ts->grip_info) {
+		ts->grip_info = kernel_grip_init(ts->dev);
+		if (ts->grip_info) {
+			ts->grip_info->p_ts = ts;
+			init_kernel_grip_proc(prEntry_tp, ts->grip_info);
+			TPD_INFO("kernel grip prevention enabled\n");
+		} else {
+			TPD_INFO("kernel grip prevention init failed; continuing without it\n");
+		}
+	}
 
 	//create debug_info node
 	init_debug_info_proc(ts);
@@ -6410,6 +6440,8 @@ static int init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 	ts->edge_limit_support      = of_property_read_bool(np, "edge_limit_support");
 	ts->oos_edge_limit_support  = of_property_read_bool(np, "oos_edge_limit_support");
 	ts->fw_edge_limit_support   = of_property_read_bool(np, "fw_edge_limit_support");
+	ts->kernel_grip_support     = of_property_read_bool(np, "kernel_grip_support");
+	ts->kernel_grip_support_special = of_property_read_bool(np, "kernel_grip_support_special");
 	ts->drlimit_remove_support  = of_property_read_bool(np, "drlimit_remove_support");
 	ts->glove_mode_support      = of_property_read_bool(np, "glove_mode_support");
 	ts->esd_handle_support      = of_property_read_bool(np, "esd_handle_support");

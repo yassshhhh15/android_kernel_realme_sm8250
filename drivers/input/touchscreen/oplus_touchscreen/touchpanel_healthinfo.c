@@ -1153,7 +1153,7 @@ int tp_healthinfo_read(struct seq_file *s, void *tp_monitor_data)
     seq_printf(s, "probe_time:%lldms\n", monitor_data->probe_time);
     seq_printf(s, "max_resume_time:%lldms\n", monitor_data->max_resume_time);
     seq_printf(s, "max_suspend_time:%lldms\n", monitor_data->max_suspend_time);
-    seq_printf(s, "RATE_MIN:%d\n", monitor_data->RATE_MIN);
+    seq_printf(s, "RATE_MIN:%d\n", monitor_data->rate_min);
     seq_printf(s, "below_rate_counts:%d\n", monitor_data->below_rate_counts);
 
     //touch time rate
