@@ -98,10 +98,6 @@ obj-$(CONFIG_OPLUS_RF_CABLE_MONITOR) += op_ant_detect.o
 #endif /* OPLUS_FEATURE_RF_CABLE_DETECT */
 
 #ifdef OPLUS_FEATURE_SIM_DETECT
-obj-$(CONFIG_SIM_DETECT)	+= sim_detect.o
-#endif
-
-#ifdef OPLUS_FEATURE_SIM_DETECT
 obj-$(CONFIG_OEM_QMI)	+= oem_qmi_client.o
 #endif
 obj-y                           += qrc/
