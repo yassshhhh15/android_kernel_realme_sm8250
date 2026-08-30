@@ -12,6 +12,8 @@ obj-y     = fork.o exec_domain.o panic.o \
 	    notifier.o ksysfs.o cred.o reboot.o \
 	    async.o range.o smpboot.o ucount.o
 
+obj-y += oplus_mem_proc.o
+
 #ifdef CONFIG_OPLUS_FEATURE_PANIC_FLUSH
 obj-y += panic_flush.o
 #endif
