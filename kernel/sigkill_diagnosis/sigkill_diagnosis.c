@@ -19,6 +19,7 @@
 #include <linux/spinlock.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#include <linux/oplus_mem_proc.h>
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 #include <trace/hooks/signal.h>
@@ -157,7 +158,7 @@ static int __init sigkill_diagnosis_init(void)
 	}
 	spin_lock_init(&g_sigkill_records->lock);
 
-	root_dir_entry = proc_mkdir("oplus_mem", NULL);
+	root_dir_entry = oplus_mem_proc_get_dir();
 	g_sigkill_reason_entry = proc_create((root_dir_entry ?
 		"sigkill_reason" : "oplus_mem/sigkill_reason"),
 		0666, root_dir_entry, &proc_sigkill_reason_ops);
