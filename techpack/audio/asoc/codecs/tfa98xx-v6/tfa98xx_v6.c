@@ -460,6 +460,7 @@ static enum tfa_error tfa98xx_write_re25(struct tfa_device *tfa, int value)
 static struct dentry *tfa98xx_debugfs = NULL;
 #endif /* CONFIG_DEBUG_FS */
 #define TFA98XX_DEBUG_FS_NAME "ftm_tfa98xx"
+#define TFA98XX_FTM_PROC_MODE 0644
 int ftm_mode = 0;
 static char ftm_load_file[15] = "load_file_ok";
 static char ftm_clk[9] = "clk_ok";
@@ -509,6 +510,44 @@ static const struct file_operations tfa98xx_debug_ops =
 	.read = kernel_debug_read,
 	.write = kernel_debug_write,
 };
+
+#ifndef CONFIG_DEBUG_FS
+static struct proc_dir_entry *tfa98xx_ftm_proc_entry;
+static unsigned int tfa98xx_ftm_proc_users;
+static DEFINE_MUTEX(tfa98xx_ftm_proc_lock);
+
+static void tfa98xx_ftm_proc_get(void)
+{
+	struct proc_dir_entry *entry;
+
+	mutex_lock(&tfa98xx_ftm_proc_lock);
+	if (!tfa98xx_ftm_proc_entry) {
+		entry = proc_create_data(TFA98XX_DEBUG_FS_NAME,
+					 S_IFREG | TFA98XX_FTM_PROC_MODE, NULL,
+					 &tfa98xx_debug_ops,
+					 (void *)TFA98XX_DEBUG_FS_NAME);
+		if (entry)
+			tfa98xx_ftm_proc_entry = entry;
+		else
+			pr_err("failed to create %s proc entry\n",
+			       TFA98XX_DEBUG_FS_NAME);
+	}
+	tfa98xx_ftm_proc_users++;
+	mutex_unlock(&tfa98xx_ftm_proc_lock);
+}
+
+static void tfa98xx_ftm_proc_put(void)
+{
+	mutex_lock(&tfa98xx_ftm_proc_lock);
+	if (tfa98xx_ftm_proc_users)
+		tfa98xx_ftm_proc_users--;
+	if (!tfa98xx_ftm_proc_users && tfa98xx_ftm_proc_entry) {
+		proc_remove(tfa98xx_ftm_proc_entry);
+		tfa98xx_ftm_proc_entry = NULL;
+	}
+	mutex_unlock(&tfa98xx_ftm_proc_lock);
+}
+#endif /* !CONFIG_DEBUG_FS */
 #endif /* OPLUS_ARCH_EXTENDS */
 
 static enum Tfa98xx_Error tfa9874_calibrate(struct tfa98xx *tfa98xx_cal, int *speakerImpedance)
@@ -5265,8 +5304,7 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 	tfa98xx_debugfs = debugfs_create_file(TFA98XX_DEBUG_FS_NAME,
 			S_IFREG | S_IRUGO | S_IWUSR, NULL, (void *)TFA98XX_DEBUG_FS_NAME, &tfa98xx_debug_ops);
 	#else
-	proc_create_data(TFA98XX_DEBUG_FS_NAME,
-				S_IFREG | S_IRUGO | S_IWUSR, NULL, &tfa98xx_debug_ops, (void *)TFA98XX_DEBUG_FS_NAME);
+	tfa98xx_ftm_proc_get();
 	#endif /*CONFIG_DEBUG_FS*/
 
 	ftm_mode = get_boot_mode();
@@ -5319,6 +5357,12 @@ static int tfa98xx_i2c_remove(struct i2c_client *i2c)
 	device_remove_bin_file(&i2c->dev, &dev_attr_rw);
 
 	tfa98xx_debug_remove(tfa98xx);
+
+	#ifdef OPLUS_ARCH_EXTENDS
+	#ifndef CONFIG_DEBUG_FS
+	tfa98xx_ftm_proc_put();
+	#endif /* !CONFIG_DEBUG_FS */
+	#endif /* OPLUS_ARCH_EXTENDS */
 
 	snd_soc_unregister_component(&i2c->dev);
 
@@ -5411,4 +5455,3 @@ module_exit(tfa98xx_i2c_exit);
 
 MODULE_DESCRIPTION("ASoC TFA98XX driver");
 MODULE_LICENSE("GPL");
-
