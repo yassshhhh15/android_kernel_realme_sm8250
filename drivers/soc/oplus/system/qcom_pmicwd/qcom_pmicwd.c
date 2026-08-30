@@ -45,11 +45,7 @@
 
 #define PMIC_WD_DEFAULT_TIMEOUT 254
 #define PMIC_WD_DEFAULT_ENABLE 0
-
-#define  OPLUS_KE_PROC_ENTRY(name, entry, mode)\
-	({if (!proc_create(#name, S_IFREG | mode, oplus_ke_proc_dir, \
-		&proc_##entry##_fops)){ \
-		pr_info("proc_create %s failed\n", #name);}})
+#define PMICWD_PROC_MODE 0666
 
 #define OPLUS_KE_FILE_OPS(entry) \
 	static const struct file_operations proc_##entry##_fops = { \
@@ -58,6 +54,11 @@
 	}
 
 static struct proc_dir_entry *oplus_ke_proc_dir;
+static struct proc_dir_entry *force_shutdown_entry;
+static struct proc_dir_entry *pmicwd_proc_entry;
+static struct qpnp_pon *pmicwd_owner;
+static DEFINE_MUTEX(oplus_ke_proc_lock);
+static const struct file_operations pmicwd_proc_fops;
 
 static ssize_t proc_force_shutdown_read(struct file *file,
 				char __user *buf, size_t size, loff_t *ppos)
@@ -85,6 +86,63 @@ OPLUS_KE_FILE_OPS(force_shutdown);
 const struct dev_pm_ops qpnp_pm_ops;
 struct qpnp_pon *sys_reset_dev;
 EXPORT_SYMBOL(sys_reset_dev);
+
+static void pmicwd_proc_init(void)
+{
+	struct proc_dir_entry *entry;
+
+	mutex_lock(&oplus_ke_proc_lock);
+	if (!oplus_ke_proc_dir) {
+		entry = proc_mkdir("oplus_ke", NULL);
+		if (entry)
+			oplus_ke_proc_dir = entry;
+		else
+			pr_info("oplus_ke proc_mkdir failed\n");
+	}
+
+	if (oplus_ke_proc_dir && !force_shutdown_entry) {
+		entry = proc_create("force_shutdown", S_IFREG | 0600,
+				    oplus_ke_proc_dir,
+				    &proc_force_shutdown_fops);
+		if (entry)
+			force_shutdown_entry = entry;
+		else
+			pr_info("proc_create force_shutdown failed\n");
+	}
+	mutex_unlock(&oplus_ke_proc_lock);
+}
+
+static bool pmicwd_claim_owner(struct qpnp_pon *pon)
+{
+	bool claimed = false;
+
+	mutex_lock(&oplus_ke_proc_lock);
+	if (!pmicwd_owner && (!sys_reset_dev || sys_reset_dev == pon)) {
+		if (!sys_reset_dev)
+			sys_reset_dev = pon;
+		pmicwd_owner = pon;
+		claimed = true;
+	}
+	mutex_unlock(&oplus_ke_proc_lock);
+
+	return claimed;
+}
+
+static void pmicwd_create_proc_entry(void)
+{
+	struct proc_dir_entry *entry;
+
+	mutex_lock(&oplus_ke_proc_lock);
+	if (!pmicwd_proc_entry) {
+		entry = proc_create("pmicWd", PMICWD_PROC_MODE, NULL,
+				    &pmicwd_proc_fops);
+		if (entry)
+			pmicwd_proc_entry = entry;
+		else
+			pr_info("proc_create pmicWd failed\n");
+	}
+	mutex_unlock(&oplus_ke_proc_lock);
+}
 
 static int raise_wdt_issue(void) {
         pr_info("%s wdt issue begin!\n", __func__);
@@ -408,7 +466,7 @@ static struct notifier_block pmicWd_pm_nb = {
 	.priority = INT_MAX,
 };
 
-static struct file_operations pmicwd_proc_fops = {
+static const struct file_operations pmicwd_proc_fops = {
 	.read = pmicwd_proc_read,
 	.write = pmicwd_proc_write,
 };
@@ -505,18 +563,20 @@ void pmicwd_init(struct platform_device *pdev, struct qpnp_pon *pon, bool sys_re
 	u32 pon_rt_sts = 0;
 	int rc;
 
-	oplus_ke_proc_dir = proc_mkdir("oplus_ke", NULL);
-	if (oplus_ke_proc_dir == NULL) {
-		pr_info("oplus_ke proc_mkdir failed\n");
-	}
+	pmicwd_proc_init();
 
-	OPLUS_KE_PROC_ENTRY(force_shutdown, force_shutdown, 0600);
-
-	if (!pon){
+	if (!pon)
+		return;
+	if (!sys_reset) {
+		pon->pmicwd_state = of_property_read_bool(pdev->dev.of_node,
+							  "qcom,pmicwd");
+		pon->wd_task = NULL;
+		pon->suspend_state = 0;
 		return;
 	}
-	if (!sys_reset)
+	if (!pmicwd_claim_owner(pon))
 		return;
+
 	pon->pmicwd_state = of_property_read_bool(pdev->dev.of_node,"qcom,pmicwd");
 	pon->wd_task = NULL;
 	pon->suspend_state = 0;
@@ -530,7 +590,7 @@ void pmicwd_init(struct platform_device *pdev, struct qpnp_pon *pon, bool sys_re
 			pon->pmicwd_state = PMIC_WD_DEFAULT_ENABLE | (PMIC_WD_DEFAULT_TIMEOUT << 8) |
 				(PON_POWER_OFF_HARD_RESET << 16);
 		}
-		proc_create("pmicWd", 0666, NULL, &pmicwd_proc_fops);
+		pmicwd_create_proc_entry();
 		mutex_init(&pon->wd_task_mutex);
 		#if PMIC_WD_DEFAULT_ENABLE
 		pon->wd_task = kthread_create(pmicwd_kthread, pon,"pmicwd");
