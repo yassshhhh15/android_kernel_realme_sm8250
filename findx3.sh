@@ -10,7 +10,7 @@ KERNEL_DEFCONFIG="${KERNEL_DEFCONFIG:-vendor/kona-perf_defconfig}"
 CLANG_DIR="${CLANG_DIR:-$MAIN_DIR/clang-10}"
 CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
 JOBS="${JOBS:-$(nproc --all)}"
-RESUKISU_REPO_URL="${RESUKISU_REPO_URL:-https://github.com/ReSukiSU/ReSukiSU.git}"
+RESUKISU_SETUP_URL="${RESUKISU_SETUP_URL:-https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh}"
 
 BLUE='\033[0;34m'
 NOCOL='\033[0m'
@@ -20,8 +20,6 @@ RESUKISU_REF="main"
 RESUKISU_BACKUP_DIR=""
 RESUKISU_LINK_STATE="absent"
 RESUKISU_LINK_TARGET=""
-RESUKISU_SOURCE_DIR=""
-RESUKISU_COMMIT=""
 PACKAGE_DIR=""
 RESUKISU_LOG_PATCH="$KERNEL_DIR/findx3-resukisu-log-noise.diff"
 
@@ -39,7 +37,7 @@ Build the Find X3 kernel and create an AnyKernel package.
 
 Environment overrides:
   KERNEL_DEFCONFIG, CLANG_DIR, CROSS_COMPILE, JOBS
-  RESUKISU_REPO_URL
+  RESUKISU_SETUP_URL
 EOF
 }
 
@@ -70,9 +68,9 @@ cleanup_resukisu() {
 			;;
 		esac
 
-		find "$RESUKISU_BACKUP_DIR" -depth -delete 2>/dev/null || true
+		rm -f -- "$RESUKISU_BACKUP_DIR/Makefile" "$RESUKISU_BACKUP_DIR/Kconfig"
+		rmdir -- "$RESUKISU_BACKUP_DIR" 2>/dev/null || true
 		RESUKISU_BACKUP_DIR=""
-		RESUKISU_SOURCE_DIR=""
 	fi
 
 	if [[ -n "$PACKAGE_DIR" ]]; then
@@ -137,8 +135,6 @@ command -v 7za >/dev/null || die "7za is required for AnyKernel packaging"
 [[ -x ./scripts/config ]] || die "scripts/config is missing or not executable"
 
 prepare_resukisu() {
-	local -a clone_args
-
 	if ! git diff --quiet -- drivers/Makefile drivers/Kconfig; then
 		die "drivers/Makefile or drivers/Kconfig has local changes; refusing to overwrite them"
 	fi
@@ -154,33 +150,33 @@ prepare_resukisu() {
 		die "drivers/kernelsu exists and is not a symlink"
 	fi
 
-	echo "**** Integrating ReSukiSU ref: $RESUKISU_REF ****"
-	[[ "$RESUKISU_REPO_URL" == https://* ]] ||
-		die "RESUKISU_REPO_URL must use HTTPS"
-	RESUKISU_SOURCE_DIR="$RESUKISU_BACKUP_DIR/KernelSU"
-	clone_args=(--quiet --no-checkout)
-	if [[ -d KernelSU ]] && git -C KernelSU rev-parse --verify HEAD >/dev/null 2>&1; then
-		clone_args+=(--reference-if-able="$KERNEL_DIR/KernelSU")
+	if [[ -e KernelSU || -L KernelSU ]]; then
+		if [[ ! -d KernelSU ]] || ! git -C KernelSU rev-parse --verify HEAD >/dev/null 2>&1; then
+			die "KernelSU exists but is not a complete Git checkout; remove it manually and retry"
+		fi
 	fi
-	git clone "${clone_args[@]}" "$RESUKISU_REPO_URL" "$RESUKISU_SOURCE_DIR" ||
-		die "unable to clone ReSukiSU"
-	git -C "$RESUKISU_SOURCE_DIR" checkout --quiet --detach "$RESUKISU_REF" ||
-		die "ReSukiSU ref does not exist: $RESUKISU_REF"
-	RESUKISU_COMMIT="$(git -C "$RESUKISU_SOURCE_DIR" rev-parse --verify 'HEAD^{commit}')" ||
-		die "unable to determine the checked out ReSukiSU commit"
 
-	ln -s -- "$(realpath --relative-to=drivers "$RESUKISU_SOURCE_DIR/kernel")" drivers/kernelsu
-	printf '\nobj-$(CONFIG_KSU) += kernelsu/\n' >> drivers/Makefile
-	sed -i '/endmenu/i\source "drivers/kernelsu/Kconfig"' drivers/Kconfig
+	echo "**** Integrating ReSukiSU ref: $RESUKISU_REF ****"
+	# The official script clones/updates KernelSU and wires its kernel subtree
+	# into drivers/. The tracked files and symlink are restored by the EXIT trap.
+	curl -fsSL --retry 3 "$RESUKISU_SETUP_URL" | bash -s -- "$RESUKISU_REF"
+	local selected_ref expected_ref
+	selected_ref="$(git -C KernelSU rev-parse --verify 'HEAD^{commit}')" ||
+		die "unable to determine the checked out ReSukiSU commit"
+	if ! expected_ref="$(git -C KernelSU rev-parse --verify "${RESUKISU_REF}^{commit}" 2>/dev/null)"; then
+		die "ReSukiSU ref does not exist: $RESUKISU_REF"
+	fi
+	if [[ "$selected_ref" != "$expected_ref" ]]; then
+		die "ReSukiSU checkout mismatch: requested $RESUKISU_REF, got $selected_ref"
+	fi
 
 	[[ -f "$RESUKISU_LOG_PATCH" ]] ||
 		die "missing ReSukiSU log policy patch: $RESUKISU_LOG_PATCH"
-	if ! git -C "$RESUKISU_SOURCE_DIR" apply --unidiff-zero --check "$RESUKISU_LOG_PATCH"; then
+	if ! git -C KernelSU apply --unidiff-zero --check "$RESUKISU_LOG_PATCH"; then
 		die "ReSukiSU log policy patch does not apply to ref: $RESUKISU_REF"
 	fi
-	git -C "$RESUKISU_SOURCE_DIR" apply --unidiff-zero "$RESUKISU_LOG_PATCH" ||
+	git -C KernelSU apply --unidiff-zero "$RESUKISU_LOG_PATCH" ||
 		die "failed to apply ReSukiSU log policy patch"
-	echo "ReSukiSU commit: $RESUKISU_COMMIT"
 }
 
 if (( RESUKISU_ENABLED )); then
@@ -218,11 +214,6 @@ cp -f -- "$ZIMAGE_DIR/Image" "$PACKAGE_DIR/Image"
 cp -f -- "$ZIMAGE_DIR/dtbo.img" "$PACKAGE_DIR/dtbo.img"
 cp -f -- "$ZIMAGE_DIR/dtb" "$PACKAGE_DIR/dtb"
 cp -a -- anykernel/. "$PACKAGE_DIR/"
-if (( RESUKISU_ENABLED )); then
-	printf 'repository=%s\nrequested_ref=%s\ncommit=%s\n' \
-		"$RESUKISU_REPO_URL" "$RESUKISU_REF" "$RESUKISU_COMMIT" \
-		> "$PACKAGE_DIR/resukisu-build-info.txt"
-fi
 
 (cd "$PACKAGE_DIR" && 7za a -mx9 "$PACKAGE" .)
 echo "AnyKernel package: $PACKAGE"
