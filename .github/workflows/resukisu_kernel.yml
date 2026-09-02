@@ -1,0 +1,138 @@
+name: Build Aurora with ReSukiSU
+
+on:
+  push:
+    branches: [ bpf-5.15-backport ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout kernel source
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          bc bison build-essential flex git \
+          libssl-dev libelf-dev libdw-dev libbpf-dev zlib1g-dev \
+          lld llvm cmake \
+          python3 python-is-python3 \
+          zip unzip cpio rsync curl wget \
+          gcc g++ \
+          binutils-aarch64-linux-gnu
+
+    - name: Build pahole (>= 1.25 for --btf_features)
+      run: |
+        git clone -q --depth=1 --branch v1.31 https://github.com/acmel/dwarves.git /tmp/dwarves
+        cd /tmp/dwarves
+        mkdir -p build && cd build
+        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ..
+        make -s -j$(nproc --all)
+        sudo make install
+        pahole --version
+
+    - name: Clone Clang 20
+      run: |
+        git clone --depth=1 https://gitlab.com/provasishh/clang-20.git tc
+
+    - name: Setup ReSukiSU
+      run: |
+        curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+
+    - name: Build & Package Kernel
+      run: |
+        echo "Cloning AnyKernel"
+        git clone --depth=1 https://github.com/yassshhhh15/AnyKernel3.git anykernel
+
+        DT=$(date +"%Y%m%d-%H%M")
+        CONFIG=vendor/kona-perf_defconfig
+
+        CROSS_COMPILE="$(pwd)/tc/aarch64-linux-android-4.9/bin/aarch64-linux-android-"
+        CLANG="$(pwd)/tc/clang/bin/clang"
+
+        ARCH=arm64
+        OUT_DIR="$(pwd)/out"
+
+        export CLANG_TRIPLE=aarch64-linux-gnu-
+        export CONFIG_TECHPACK_CAMERA_OPPO=y
+
+        compile() {
+          echo "Generating kernel config..."
+
+          make O="${OUT_DIR}" \
+            ARCH="${ARCH}" \
+            CROSS_COMPILE="${CROSS_COMPILE}" \
+            CC="${CLANG}" \
+            LLVM_IAS=1 \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            "${CONFIG}"
+
+          echo "Disabling STMVL53L1..."
+
+          ./scripts/config \
+            --file "${OUT_DIR}/.config" \
+            --disable STMVL53L1
+
+          make O="${OUT_DIR}" \
+            ARCH="${ARCH}" \
+            CROSS_COMPILE="${CROSS_COMPILE}" \
+            CC="${CLANG}" \
+            LLVM_IAS=1 \
+            olddefconfig
+
+          echo "Building ReSukiSU kernel..."
+
+          make O="${OUT_DIR}" \
+            ARCH="${ARCH}" \
+            CROSS_COMPILE="${CROSS_COMPILE}" \
+            CC="${CLANG}" \
+            LLVM_IAS=1 \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            -j"$(nproc)"
+        }
+
+        zipping() {
+          echo "Zipping kernel..."
+
+          cd anykernel || exit 1
+
+          rm -f *.zip Image dtbo.img dtb
+
+          cp ../out/arch/arm64/boot/Image .
+          cp ../out/arch/arm64/boot/dtbo.img .
+          cp ../out/arch/arm64/boot/dtb .
+
+          zip -r9 "Aurora-COS17-${DT}.zip" *
+
+          rm -f Image dtbo.img dtb
+
+          cd ..
+        }
+
+        remove() {
+          echo "Removing compiled images..."
+
+          rm -f out/arch/arm64/boot/Image
+          rm -f out/arch/arm64/boot/dtbo.img
+          rm -f out/arch/arm64/boot/dtb
+        }
+
+        compile
+        zipping
+        remove
+
+    - name: Upload flashable zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: Aurora-COS17-ReSukiSU
+        path: anykernel/*.zip
