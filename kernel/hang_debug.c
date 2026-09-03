@@ -26,9 +26,6 @@
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/ratelimit.h>
-#include <linux/pid.h>
-#include <linux/ptrace.h>
-#include <asm/ptrace.h>
 #include <asm/memory.h>
 #include <linux/hang_debug.h>
 
@@ -220,96 +217,6 @@ void hang_debug_show_state(void)
 		show_state_filter(TASK_UNINTERRUPTIBLE);
 }
 
-static void hang_debug_dump_sched_info(void)
-{
-	hang_debug_log("sched: online=%d present=%d\n",
-		       num_online_cpus(), num_present_cpus());
-}
-
-static void hang_debug_dump_system_server(void)
-{
-	struct task_struct *g, *t;
-	struct task_struct *leader = NULL;
-	int count = 0;
-
-	rcu_read_lock();
-	for_each_process(g) {
-		if (!strcmp(g->comm, "system_server")) {
-			leader = g;
-			get_task_struct(leader);
-			break;
-		}
-	}
-	rcu_read_unlock();
-	if (!leader) {
-		hang_debug_log("system_server: not found\n");
-		return;
-	}
-	hang_debug_log("system_server: leader pid=%d tgid=%d state=%lx cpu=%d prio=%d\n",
-		       leader->pid, leader->tgid,
-		       (unsigned long)leader->state,
-		       task_cpu(leader), leader->prio);
-	/* dump current's user stack first (native) */
-#ifdef CONFIG_OPLUS_HANG_DEBUG_USER_STACK
-	if (!in_atomic() && !irqs_disabled()) {
-		struct pt_regs *regs = task_pt_regs(current);
-
-		if (regs && current->mm)
-			hang_debug_dump_user_stack(current, regs);
-	}
-#endif
-	rcu_read_lock();
-	for_each_process_thread(leader, t) {
-		struct pt_regs *regs;
-
-		if (count >= 64)
-			break;
-		/* prefer interesting states */
-		if (t->state != TASK_UNINTERRUPTIBLE &&
-		    t->state != TASK_RUNNING &&
-		    strcmp(t->comm, "Binder:") &&
-		    strncmp(t->comm, "Binder:", 7) != 0)
-			continue;
-		get_task_struct(t);
-		rcu_read_unlock();
-		hang_debug_log(" system_server thread pid=%d comm=%s state=%lx cpu=%d wchan=%ps\n",
-			       t->pid, t->comm, (unsigned long)t->state,
-			       task_cpu(t), get_wchan(t));
-		/* kernel stack via sched_show_task (also to console) */
-		if (__ratelimit(&hang_debug_rs))
-			sched_show_task(t);
-#ifdef CONFIG_OPLUS_HANG_DEBUG_USER_STACK
-		if (!in_atomic() && !irqs_disabled() && t->mm) {
-			regs = task_pt_regs(t);
-			/* skip if regs looks invalid */
-			if (regs)
-				hang_debug_dump_user_stack(t, regs);
-		}
-#endif
-		put_task_struct(t);
-		rcu_read_lock();
-		count++;
-	}
-	/* if no interesting threads, dump first 16 */
-	if (count == 0) {
-		for_each_process_thread(leader, t) {
-			if (count >= 16)
-				break;
-			get_task_struct(t);
-			rcu_read_unlock();
-			hang_debug_log(" system_server thread pid=%d comm=%s state=%lx\n",
-				       t->pid, t->comm, (unsigned long)t->state);
-			put_task_struct(t);
-			rcu_read_lock();
-			count++;
-		}
-	}
-	rcu_read_unlock();
-	hang_debug_log("system_server: dumped %d threads (limit 64)\n", count);
-	put_task_struct(leader);
-	hang_debug_dump_sched_info();
-}
-
 static void hang_debug_fill_header(enum hang_debug_reason reason)
 {
 	struct hanglog_header *h = hanglog_hdr;
@@ -388,9 +295,6 @@ static void __hang_debug_snapshot(enum hang_debug_reason reason, bool atomic)
 		hang_debug_trace_freeze();
 
 	hang_debug_show_state();
-
-	if (!atomic)
-		hang_debug_dump_system_server();
 
 	/* binder snapshot is bounded and will be added in later phase */
 	if (!atomic)
