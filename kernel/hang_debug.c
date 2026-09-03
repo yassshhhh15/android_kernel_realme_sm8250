@@ -42,13 +42,9 @@
 #define HANG_DEBUG_RATE_LIMIT_NS	(10ULL * NSEC_PER_SEC)
 #define HANG_DEBUG_MAX_TASKS		64
 
-/* tracing_off/snapshot in kernel/trace/trace.c */
+/* tracing_off is in kernel/trace/trace.c, not in include/linux */
 #ifdef CONFIG_TRACING
 extern void tracing_off(void);
-#endif
-#ifdef CONFIG_TRACER_SNAPSHOT
-extern int tracing_alloc_snapshot(void);
-extern void tracing_snapshot(void);
 #endif
 
 static char hanglog_buf[HANGLOG_SIZE] __aligned(PAGE_SIZE);
@@ -63,7 +59,6 @@ static u32 hanglog_flags;
 static DEFINE_RAW_SPINLOCK(hanglog_lock);
 static struct dentry *hang_debug_dentry;
 static DEFINE_RATELIMIT_STATE(hang_debug_rs, 5 * HZ, 1);
-static bool console_dump;
 
 static const char *hang_debug_reason_str(enum hang_debug_reason r)
 {
@@ -165,13 +160,6 @@ void hang_debug_trace_freeze(void)
 	tracing_off();
 	hanglog_flags |= HANGLOG_FLAG_TRACE_FROZEN;
 	pr_info("hang_debug: trace frozen\n");
-#ifdef CONFIG_TRACER_SNAPSHOT
-	/* FULL snapshot only: snapshot requires sleepable context, skip atomic */
-	if (!in_atomic() && !irqs_disabled()) {
-		tracing_snapshot();
-		pr_info("hang_debug: trace snapshot taken\n");
-	}
-#endif
 #endif
 #endif
 }
@@ -229,13 +217,8 @@ void hang_debug_show_state(void)
 {
 	hang_debug_dump_current();
 	hang_debug_dump_tasks();
-	/*
-	 * Console dump is opt-in (debugfs console_dump=1): show_state_filter
-	 * iterates every task and can hold the RCU read side for seconds on
-	 * a loaded system, which under rapid triggers starves the watchdog.
-	 * HANGLOG already captured bounded task state above.
-	 */
-	if (console_dump && __ratelimit(&hang_debug_rs))
+	/* console side: reuse existing scheduler debug, rate limited */
+	if (__ratelimit(&hang_debug_rs))
 		show_state_filter(TASK_UNINTERRUPTIBLE);
 }
 
@@ -294,12 +277,8 @@ static void hang_debug_dump_system_server(void)
 		hang_debug_log(" system_server thread pid=%d comm=%s state=%lx cpu=%d wchan=%ps\n",
 			       t->pid, t->comm, (unsigned long)t->state,
 			       task_cpu(t), get_wchan(t));
-		/*
-		 * Kernel stack to console is opt-in with console_dump:
-		 * sched_show_task per thread under rapid triggers is the
-		 * main console-storm source (see hang_debug_show_state).
-		 */
-		if (console_dump && __ratelimit(&hang_debug_rs))
+		/* kernel stack via sched_show_task (also to console) */
+		if (__ratelimit(&hang_debug_rs))
 			sched_show_task(t);
 #ifdef CONFIG_OPLUS_HANG_DEBUG_USER_STACK
 		if (!in_atomic() && !irqs_disabled() && t->mm) {
@@ -554,17 +533,7 @@ static int __init hang_debug_init(void)
 			   &hanglog_hdr->seq);
 	debugfs_create_x32("len", 0444, hang_debug_dentry,
 			   &hanglog_hdr->len);
-	debugfs_create_bool("console_dump", 0600, hang_debug_dentry,
-			    &console_dump);
 	pr_info("hang_debug: initialized HANGLOG %u bytes\n", HANGLOG_SIZE);
-#ifdef CONFIG_TRACER_SNAPSHOT
-	if (IS_ENABLED(CONFIG_OPLUS_HANG_DEBUG_TRACE)) {
-		if (tracing_alloc_snapshot() == 0)
-			pr_info("hang_debug: snapshot buffer allocated\n");
-		else
-			pr_info("hang_debug: snapshot alloc failed\n");
-	}
-#endif
 	register_reboot_notifier(&hang_debug_reboot_nb);
 	return 0;
 }

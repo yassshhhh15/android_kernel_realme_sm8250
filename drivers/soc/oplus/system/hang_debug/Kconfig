@@ -28,15 +28,7 @@ config OPLUS_HANG_DEBUG_TRACE
 	default y
 	help
 	  Freeze ftrace ring buffer via tracing_off() at snapshot time
-	  to preserve the last seconds before a freeze. When
-	  TRACER_SNAPSHOT is set (via IRQSOFF/PREEMPT tracers), also
-	  allocate a snapshot buffer at boot and take a snapshot at hang
-	  time (FULL only). The frozen trace is available via
-	  /sys/kernel/debug/tracing/trace and snapshot. For persistent
-	  storage, enable PSTORE_FTRACE to copy ftrace to pstore ramoops
-	  (kona already has ftrace 256K @ ramoops); a custom 2-4M raw
-	  TRACEBUF minidump region is DEFERRED due to ring_buffer format
-	  instability — reuse pstore instead.
+	  to preserve the last seconds before a freeze.
 
 config OPLUS_HANG_DEBUG_USER_STACK
 	bool "Capture userspace native stacks (bounded)"
@@ -64,11 +56,4 @@ config OPLUS_HANG_DEBUG_SYSTEM_SERVER_PERMISSIVE
 	help
 	  DEBUG-ONLY: make only system_server domain permissive while
 	  keeping SELinux globally enforcing (policydb.permissive_map).
-	  DEFERRED: requires write_lock_irq(&policy_rwlock) +
-	  ebitmap_set_bit(permissive_map, type, 1) + avc_ss_reset() after
-	  policy load (symtab_search for "system_server" type). Even though
-	  bounded (single type, post-load, not in AVC hot path), it is
-	  security-sensitive and invasive to security/selinux core. A safe
-	  alternative would be a debugfs manual trigger (not auto at boot),
-	  but keep DEFER until P0-P3 are fully validated on device; use
-	  setenforce 0 as manual alternative for now.
+	  Requires careful policy load ordering. P4 / DEFER.
