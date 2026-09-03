@@ -19,9 +19,6 @@
 
 #include <asm/irq_regs.h>
 #include <linux/perf_event.h>
-#ifdef CONFIG_OPLUS_HANG_DEBUG
-#include <linux/hang_debug.h>
-#endif
 
 static DEFINE_PER_CPU(bool, hard_watchdog_warn);
 static DEFINE_PER_CPU(bool, watchdog_nmi_touch);
@@ -143,9 +140,6 @@ static void watchdog_overflow_callback(struct perf_event *event,
 			return;
 
 		pr_emerg("Watchdog detected hard LOCKUP on cpu %d", this_cpu);
-#ifdef CONFIG_OPLUS_HANG_DEBUG
-		hang_debug_snapshot_atomic(HANG_DEBUG_WATCHDOG);
-#endif
 		print_modules();
 		print_irqtrace_events(current);
 		if (regs)

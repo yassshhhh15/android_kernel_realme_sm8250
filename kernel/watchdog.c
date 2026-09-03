@@ -27,9 +27,6 @@
 
 #include <asm/irq_regs.h>
 #include <linux/kvm_para.h>
-#ifdef CONFIG_OPLUS_HANG_DEBUG
-#include <linux/hang_debug.h>
-#endif
 
 static DEFINE_MUTEX(watchdog_mutex);
 
@@ -447,9 +444,6 @@ static enum hrtimer_restart watchdog_timer_fn(struct hrtimer *hrtimer)
 		pr_emerg("BUG: soft lockup - CPU#%d stuck for %us! [%s:%d]\n",
 			smp_processor_id(), duration,
 			current->comm, task_pid_nr(current));
-#ifdef CONFIG_OPLUS_HANG_DEBUG
-		hang_debug_snapshot_atomic(HANG_DEBUG_WATCHDOG);
-#endif
 		__this_cpu_write(softlockup_task_ptr_saved, current);
 		print_modules();
 		print_irqtrace_events(current);
