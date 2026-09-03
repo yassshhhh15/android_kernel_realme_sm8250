@@ -20,9 +20,6 @@
 
 #include <soc/oplus/system/hung_task_enhance.h>
 #include <soc/oplus/system/oplus_signal.h>
-#ifdef CONFIG_OPLUS_HANG_DEBUG
-#include <linux/hang_debug.h>
-#endif
 
 #include <linux/version.h>
 
@@ -153,9 +150,6 @@ static void oplus_check_hung_task(struct task_struct *t, unsigned long timeout, 
 	}
 	if (is_usersapce_key_process(t))
 	{
-#ifdef CONFIG_OPLUS_HANG_DEBUG
-		hang_debug_snapshot(HANG_DEBUG_HUNG_TASK);
-#endif
 		if (t->state == TASK_UNINTERRUPTIBLE)
 			snprintf(sysctl_hung_task_kill, HUNG_TASK_KILL_LEN, "%s,uninterruptible for %lu seconds", t->comm, timeout);
 		else if (t->state == TASK_STOPPED)

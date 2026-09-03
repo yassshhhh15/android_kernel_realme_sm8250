@@ -28,8 +28,6 @@
 #include <linux/ratelimit.h>
 #include <linux/pid.h>
 #include <linux/ptrace.h>
-#include <linux/reboot.h>
-#include <linux/notifier.h>
 #include <asm/ptrace.h>
 #include <asm/memory.h>
 #include <linux/hang_debug.h>
@@ -470,27 +468,6 @@ static const struct file_operations hang_debug_trigger_fops = {
 	.llseek = default_llseek,
 };
 
-static int hang_debug_reboot_handler(struct notifier_block *nb,
-				       unsigned long code, void *unused)
-{
-	/* Finalize HANGLOG before normal reboot; avoid recursion */
-	hang_debug_log("reboot: notifier code=%lu\n", code);
-	hang_debug_trace_freeze();
-	if (hanglog_hdr->magic != HANGLOG_MAGIC) {
-		hang_debug_fill_header(HANG_DEBUG_REBOOT);
-		hanglog_append("reboot: no prior snapshot, init header\n");
-	}
-	hang_debug_finalize_header();
-	pr_info("hang_debug: reboot finalized seq=%u len=%u\n",
-		hanglog_hdr->seq, hanglog_hdr->len);
-	return NOTIFY_DONE;
-}
-
-static struct notifier_block hang_debug_reboot_nb = {
-	.notifier_call = hang_debug_reboot_handler,
-	.priority = 0,
-};
-
 static int __init hang_debug_minidump_init(void)
 {
 #ifdef CONFIG_OPLUS_HANG_DEBUG_MINIDUMP
@@ -534,7 +511,6 @@ static int __init hang_debug_init(void)
 	debugfs_create_x32("len", 0444, hang_debug_dentry,
 			   &hanglog_hdr->len);
 	pr_info("hang_debug: initialized HANGLOG %u bytes\n", HANGLOG_SIZE);
-	register_reboot_notifier(&hang_debug_reboot_nb);
 	return 0;
 }
 subsys_initcall(hang_debug_init);
