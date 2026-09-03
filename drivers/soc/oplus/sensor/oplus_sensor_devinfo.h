@@ -35,7 +35,7 @@
 #ifdef SENSOR_DEBUG
 #define SENSOR_DEVINFO_DEBUG(a, arg...) \
 	do{\
-		pr_debug(a, ##arg);\
+		pr_err(a, ##arg);\
 	}while(0)
 #else
 #define SENSOR_DEVINFO_DEBUG(a, arg...)

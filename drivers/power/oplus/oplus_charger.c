@@ -15836,8 +15836,7 @@ int oplus_get_adapter_power(void)
 	struct oplus_chg_chip *chip = g_charger_chip;
 
 	wls_online = oplus_wpc_get_online_status() || oplus_chg_is_wls_present();
-	pr_debug("[OPLUS_CHG][%s]oplus_wpc_get_online_status() is %d,oplus_chg_is_wls_present() is %d",
-		__func__, oplus_wpc_get_online_status(), oplus_chg_is_wls_present());
+	chg_info("oplus_wpc_get_online_status() is %d,oplus_chg_is_wls_present() is %d",oplus_wpc_get_online_status(), oplus_chg_is_wls_present());
 	
 	if ((oplus_vooc_get_fastchg_started() == true) ||
 		(oplus_vooc_get_fastchg_to_normal() == true) ||
@@ -15845,7 +15844,7 @@ int oplus_get_adapter_power(void)
 		(oplus_vooc_get_fastchg_dummy_started() == true)) {
 		vooc_online = true;
 	}
-	pr_debug("[OPLUS_CHG][%s]vooc_online = %d\n", __func__, vooc_online);
+	chg_info("vooc_online = %d\n", vooc_online);
 	if (wls_online) {
 		if (is_wls_ocm_available(g_charger_chip))
 			power = oplus_chg_wls_get_max_wireless_power(&chip->wls_ocm->dev);
@@ -15878,7 +15877,7 @@ int oplus_get_adapter_power(void)
 		}
 	}
 
-	pr_debug("[OPLUS_CHG][%s]final adapter power = %d\n", __func__, power);
+	chg_info("final adapter power = %d\n", power);
 	return power;
 }
 
@@ -15924,7 +15923,6 @@ int oplus_get_project_power(void)
 		if (chip->protocol_prio_table[i].max_power_mw > project_max_power_mw)
 			project_max_power_mw = chip->protocol_prio_table[i].max_power_mw;
 	}
-	pr_debug("[OPLUS_CHG][%s]project_power: %d,project_max_power_mw: %d\n",
-		__func__, vooc_project, project_max_power_mw);
+	chg_info("project_power: %d,project_max_power_mw");
 	return project_max_power_mw;
 }
