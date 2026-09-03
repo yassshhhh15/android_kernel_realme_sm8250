@@ -433,10 +433,11 @@ void hang_debug_snapshot_atomic(enum hang_debug_reason reason)
 }
 EXPORT_SYMBOL_GPL(hang_debug_snapshot_atomic);
 
-/* weak stub — overridden by drivers/android/binder.c when available */
-int __weak hang_debug_binder_snapshot(void)
+/* stub for future binder integration — bounded, no sleep while locked */
+int hang_debug_binder_snapshot(void)
 {
-	hang_debug_log("binder: no override, stub\n");
+	/* P1 will extend this; keep stub to avoid link errors */
+	hanglog_append("binder: snapshot not yet implemented (stub)\n");
 	return 0;
 }
 EXPORT_SYMBOL_GPL(hang_debug_binder_snapshot);

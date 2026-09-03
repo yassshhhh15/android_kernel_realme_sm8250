@@ -77,9 +77,6 @@
 #include <uapi/linux/android/binder.h>
 #include <uapi/linux/android/binderfs.h>
 #include <uapi/linux/sched/types.h>
-#ifdef CONFIG_OPLUS_HANG_DEBUG
-#include <linux/hang_debug.h>
-#endif
 
 #include <asm/cacheflush.h>
 
@@ -7690,70 +7687,6 @@ void hans_check_frozen_transcation(uid_t uid, enum message_type type)
 	mutex_unlock(&binder_procs_lock);
 }
 #endif /*OPLUS_FEATURE_HANS_FREEZE*/
-
-#ifdef CONFIG_OPLUS_HANG_DEBUG
-int hang_debug_binder_snapshot(void)
-{
-	struct binder_proc *proc;
-	int proc_cnt = 0;
-
-	if (!mutex_trylock(&binder_procs_lock)) {
-		hang_debug_log("binder: procs lock busy, skip\n");
-		return -EBUSY;
-	}
-	hlist_for_each_entry(proc, &binder_procs, proc_node) {
-		int threads = 0, nodes = 0, refs = 0, todo = 0;
-		struct rb_node *n;
-		unsigned long flags;
-
-		if (proc_cnt >= 8) {
-			hang_debug_log("binder: too many procs truncated\n");
-			break;
-		}
-		spin_lock_irqsave(&proc->inner_lock, flags);
-		for (n = rb_first(&proc->threads); n; n = rb_next(n))
-			threads++;
-		for (n = rb_first(&proc->nodes); n; n = rb_next(n))
-			nodes++;
-		todo = !list_empty(&proc->todo);
-		spin_unlock_irqrestore(&proc->inner_lock, flags);
-		spin_lock_irqsave(&proc->outer_lock, flags);
-		for (n = rb_first(&proc->refs_by_desc); n; n = rb_next(n))
-			refs++;
-		spin_unlock_irqrestore(&proc->outer_lock, flags);
-		hang_debug_log("binder proc %d (%s) threads=%d nodes=%d refs=%d todo=%d max=%d\n",
-			       proc->pid, proc->tsk ? proc->tsk->comm : "unknown",
-			       threads, nodes, refs, todo, proc->max_threads);
-		/* per-thread details, bounded 8 */
-		spin_lock_irqsave(&proc->inner_lock, flags);
-		{
-			int tcnt = 0;
-
-			for (n = rb_first(&proc->threads); n && tcnt < 8;
-			     n = rb_next(n)) {
-				struct binder_thread *th =
-					rb_entry(n, struct binder_thread, rb_node);
-				int pid = th->pid;
-				int looper = th->looper;
-				int has_todo = !list_empty(&th->todo);
-				int trans_id = th->transaction_stack ?
-					       th->transaction_stack->debug_id : 0;
-
-				spin_unlock_irqrestore(&proc->inner_lock, flags);
-				hang_debug_log(" binder thread %d looper=0x%x todo=%d trans=%d\n",
-					       pid, looper, has_todo, trans_id);
-				spin_lock_irqsave(&proc->inner_lock, flags);
-				tcnt++;
-			}
-		}
-		spin_unlock_irqrestore(&proc->inner_lock, flags);
-		proc_cnt++;
-	}
-	mutex_unlock(&binder_procs_lock);
-	hang_debug_log("binder: snapshot %d procs done\n", proc_cnt);
-	return 0;
-}
-#endif
 
 int binder_stats_show(struct seq_file *m, void *unused)
 {
