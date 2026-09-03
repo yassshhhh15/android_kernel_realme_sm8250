@@ -117,36 +117,6 @@ static int hanglog_append(const char *fmt, ...)
 	return ret;
 }
 
-void hang_debug_log(const char *fmt, ...)
-{
-	va_list args;
-	int avail, ret;
-	unsigned long flags;
-
-	raw_spin_lock_irqsave(&hanglog_lock, flags);
-	if (hanglog_len >= HANGLOG_SIZE) {
-		hanglog_flags |= HANGLOG_FLAG_TRUNCATED;
-		raw_spin_unlock_irqrestore(&hanglog_lock, flags);
-		return;
-	}
-	avail = HANGLOG_SIZE - hanglog_len;
-	va_start(args, fmt);
-	ret = vsnprintf(hanglog_buf + hanglog_len, avail, fmt, args);
-	va_end(args);
-	if (ret < 0) {
-		raw_spin_unlock_irqrestore(&hanglog_lock, flags);
-		return;
-	}
-	if (ret >= avail) {
-		hanglog_flags |= HANGLOG_FLAG_TRUNCATED;
-		hanglog_len = HANGLOG_SIZE;
-	} else {
-		hanglog_len += ret;
-	}
-	raw_spin_unlock_irqrestore(&hanglog_lock, flags);
-}
-EXPORT_SYMBOL_GPL(hang_debug_log);
-
 void hang_debug_trace_freeze(void)
 {
 #ifdef CONFIG_OPLUS_HANG_DEBUG_TRACE
