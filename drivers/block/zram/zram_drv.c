@@ -33,6 +33,7 @@
 #include <linux/sysfs.h>
 #include <linux/debugfs.h>
 #include <linux/cpuhotplug.h>
+#include <linux/memcontrol.h>
 
 #include "zram_drv.h"
 #include "zram_drv_internal.h"
@@ -1422,7 +1423,7 @@ compress_again:
 	zram_set_handle(zram, index, handle);
 	zram_set_obj_size(zram, index, comp_len);
 #ifdef CONFIG_HYBRIDSWAP_CORE
-	hybridswap_track(zram, index, page->mem_cgroup);
+	hybridswap_track(zram, index, page_memcg(page));
 #endif
 	zram_slot_unlock(zram, index);
 
@@ -1681,7 +1682,7 @@ out:
 	}
 
 #ifdef CONFIG_HYBRIDSWAP_CORE
-	hybridswap_track(zram, index, page->mem_cgroup);
+	hybridswap_track(zram, index, page_memcg(page));
 #endif
 	zram_slot_unlock(zram, index);
 
