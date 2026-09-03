@@ -27,7 +27,7 @@
 #include <linux/version.h>
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_THEIA)
-#include "../include/theia_send_event.h" /* for theia_send_event etc */
+#include <../include/theia_send_event.h> /* for theia_send_event etc */
 #endif
 #ifdef CONFIG_OPLUS_FEATURE_DEATH_HEALER
 /* 
