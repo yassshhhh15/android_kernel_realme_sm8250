@@ -8,16 +8,6 @@ vendor := $(srctree)/$(src)
 #endif
 #else
 #subdir-y += qcom
-#oneplus SM8250 project
-subdir-y += 19821
-subdir-y += 19855
-subdir-y += 19811
-subdir-y += 19805
-subdir-y += 20809
-subdir-y += 20828
-#7250 NORD
-subdir-y += 20801
-subdir-y += 20813
 # realme SM8250 project
 subdir-y += 21623
 subdir-y += 21733
